@@ -1,0 +1,16 @@
+# build output
+DIST/
+build/
+__pycache__/
+
+# Python virtual environment
+.venv/
+
+# picture output of src/tools/render
+out/
+
+# the working disk a build writes to (the blank disk/dos33blank.dsk stays in the repository)
+disk/NEWHANGEUL.DSK
+
+# font editor backup, written when font.json is saved
+font.prev.json
