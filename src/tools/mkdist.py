@@ -1,4 +1,4 @@
-"""Assemble DIST: the finished disk image and the documents.
+"""Assemble DIST, the folder for ordinary users: the finished disk image and the user manual (MANUAL.md, MANUAL_en.md) only.
 
 usage: mkdist.py <project root> [acx.exe] [output folder, default DIST]
 Run by the top-level Makefile after the three programs are built. DIST is made again each time.
@@ -6,7 +6,7 @@ Run by the top-level Makefile after the three programs are built. DIST is made a
 The disk holds only what a user needs: DOS 3.3 from disk/dos33blank.dsk (a blank DOS 3.3 disk; every file on that
 disk is deleted first), then HELLO, K-HANGEUL, FONT12, FONT6X10, TYPE, TYPEC, STYPE, STYPEC, DEMO, the text samples (SAMPLE1, NALGAE1-16),
 the BASIC readers (MIXED, STORY) and the &TYPE and &STYPE examples (SAMPLEB, TYPEDEMO, STORYT, STYPEDEMO, STORYS). MANUAL.md at the
-project root explains them and is copied to DIST.
+docs/ explains them and is copied to DIST. The program files stay in src/*/build and are not copied.
 """
 from __future__ import annotations
 
@@ -30,19 +30,6 @@ BINARIES = {
     "STYPE.bin": ASM / "stype" / "build" / "STYPE.bin",
     "STYPEC.bin": ASM / "stypec" / "build" / "STYPEC.bin",
 }
-DOCS = [
-    ("TYPE.md", ASM / "type" / "TYPE.md"),
-    ("TYPE_en.md", ASM / "type" / "TYPE_en.md"),
-    ("TYPEC.md", ASM / "typec" / "TYPEC.md"),
-    ("STYPE.md", ASM / "stype" / "STYPE.md"),
-    ("STYPE_en.md", ASM / "stype" / "STYPE_en.md"),
-    ("STYPEC.md", ASM / "stypec" / "STYPEC.md"),
-    ("MEMORY_LAYOUT.md", ASM / "driver" / "MEMORY_LAYOUT.md"),
-    ("MEMORY_LAYOUT_en.md", ASM / "driver" / "MEMORY_LAYOUT_en.md"),
-    ("DOS_PATCHES.md", ASM / "driver" / "DOS_PATCHES.md"),
-    ("DOS_PATCHES_en.md", ASM / "driver" / "DOS_PATCHES_en.md"),
-    ("FONT_EDITOR.md", ASM / "fonteditor" / "FONT_EDITOR.md"),
-]
 
 
 def acx(*args: str, data: bytes | None = None, check: bool = True) -> subprocess.CompletedProcess:
@@ -82,35 +69,12 @@ def main() -> None:
     for name, path in BINARIES.items():
         if not path.exists():
             raise SystemExit(f"missing {path}: build the programs first")
-    for sub in ("docs", "bin"):
+    DIST.mkdir(parents=True, exist_ok=True)
+    for sub in ("docs", "bin"):                  # folders and files an older build put in DIST; DIST holds only the disk and the manuals now
         shutil.rmtree(DIST / sub, ignore_errors=True)
-    (DIST / "docs").mkdir(parents=True, exist_ok=True)
-    (DIST / "bin").mkdir(exist_ok=True)
-
-    for name, path in BINARIES.items():
-        shutil.copyfile(path, DIST / "bin" / name)
-    for name, path in DOCS:
-        shutil.copyfile(path, DIST / "docs" / name)
+    (DIST / "README.md").unlink(missing_ok=True)
     shutil.copyfile(ROOT / "docs" / "MANUAL.md", DIST / "MANUAL.md")
     shutil.copyfile(ROOT / "docs" / "MANUAL_en.md", DIST / "MANUAL_en.md")
-    (DIST / "README.md").write_text(
-        "# K-HANGEUL (캐플한글)\n\n"
-        "애플 II+(DOS 3.3)의 고해상도 화면에 작고 읽기 쉬운 한글을 보여 주는 드라이버입니다. `make_all.bat`이 만들었습니다.\n\n"
-        "| 파일 | 내용 |\n|---|---|\n"
-        "| `K-HANGEUL.DSK` | 디스크입니다. 부팅하세요. `CATALOG`에 파일 33개가 있습니다. 설명은 `MANUAL.md`에 있습니다 |\n"
-        "| `MANUAL.md`, `MANUAL_en.md` | 사용 설명서(한국어, English) |\n"
-        "| `bin/` | 프로그램 파일: 드라이버, 글꼴 두 개, `TYPE`, `TYPEC`, `STYPE`, `STYPEC` |\n"
-        "| `docs/` | 개발자용 문서. 한국어는 `이름.md`, English는 `이름_en.md` |\n"
-        "\n---\n\n"
-        "# K-HANGEUL (캐플한글)\n\n"
-        "A driver that shows small, readable Hangul on the hi-res screen of an Apple II Plus (DOS 3.3). Made by `make_all.bat`.\n\n"
-        "| file | what |\n|---|---|\n"
-        "| `K-HANGEUL.DSK` | the disk: boot it. `CATALOG` lists 33 files; `MANUAL_en.md` says what each is |\n"
-        "| `MANUAL.md`, `MANUAL_en.md` | the user manual (Korean, English) |\n"
-        "| `bin/` | the programs as raw files: the driver, its two fonts, `TYPE`, `TYPEC`, `STYPE`, `STYPEC` |\n"
-        "| `docs/` | notes for developers. Korean is `name.md`, English is `name_en.md` |\n",
-        encoding="utf-8",
-    )
     try:
         shutil.copyfile(ROOT / "disk" / "dos33blank.dsk", DSK)
     except PermissionError:

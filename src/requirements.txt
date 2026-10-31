@@ -1,5 +1,0 @@
-# Python packages for the scripts in src/
-# install with: python -m pip install -r src\requirements.txt
-#
-# pillow draws the font pictures (src/tools/render/). Everything else uses the standard library only.
-pillow==12.3.0

@@ -1,0 +1,11 @@
+# Python packages for the scripts in this repository.
+# Create a virtual environment first (see BUILD.md), then:
+#   python -m pip install -r requirements.txt
+#
+# The disk build itself (fontgen.py, mkdist.py, nbyte.py) and the font editor use only the standard library
+# (the editor also needs tkinter, which comes with Python).
+#
+# pillow: draws the font pictures (src/tools/render/) and tools/perf/hgr2png.py
+pillow==12.3.0
+# py65: the 6502 simulator behind tools/perf/ (speed and pixel-by-pixel comparison of driver builds)
+py65==1.2.0

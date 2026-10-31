@@ -4,7 +4,7 @@
 ;
 ; It is the same reader as the &TYPE command (core.inc) in a program of its own, so it
 ; needs nothing installed and leaves nothing behind. Load address $8E00; the two sector
-; buffers are at $9200 and $9300. See TYPEC.md.
+; buffers are at $9200 and $9300. See docs/TYPEC.md.
 
 MON_GETLN = $FD6A
 PROMPTCH  = $33

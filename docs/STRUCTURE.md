@@ -5,19 +5,30 @@
 
 ```
 README.md                     저장소 소개와 빌드 방법
+BUILD.md, BUILD_en.md         빌드 방법을 단계별로 설명
+build.bat                     한 번에 빌드해서 disk/K-HANGEUL.DSK를 만듦
+clean.bat                     빌드 결과(build/, DIST/ 안의 내용)를 지움
+requirements.txt              Python 패키지 목록
 .gitignore                    빌드 결과와 가상 환경을 올리지 않게 하는 목록
 docs/
   MANUAL.md                   사용 설명서 (한국어)
   MANUAL_en.md                사용 설명서 (English)
   STRUCTURE.md                이 문서
+  TYPE.md, TYPE_en.md         &TYPE 명령
+  TYPEC.md                    TYPEC (한국어/English 한 파일)
+  STYPE.md, STYPE_en.md       &STYPE 명령
+  STYPEC.md                   STYPEC (한국어/English 한 파일)
+  MEMORY_LAYOUT.md, _en.md    메모리 배치
+  DOS_PATCHES.md, _en.md      DOS에 하는 패치
+  FONT_EDITOR.md              글꼴 편집기
 disk/
   K-HANGEUL.DSK               완성된 사용자 디스크 (부팅용)
   dos33blank.dsk              사용자 디스크를 만드는 빈 DOS 3.3 디스크
 src/
   make_all.bat, Makefile      전체 빌드
   README.md                   src 폴더 설명
-  PYTHON.md, requirements.txt Python 설정
-  driver/                     드라이버 소스, 글꼴 만들기, 메모리와 DOS 설명
+  PYTHON.md                   Python 설정
+  driver/                     드라이버 소스, 글꼴 만들기
   type/, typec/               &TYPE 명령과 TYPEC
   stype/, stypec/             &STYPE 명령과 STYPEC
   fonteditor/                 글꼴 편집기와 font.json
@@ -64,19 +75,30 @@ This repository holds the source of the K-HANGEUL driver, its build tools and it
 
 ```
 README.md                     what the repository is and how to build it
+BUILD.md, BUILD_en.md         step-by-step build guide
+build.bat                     builds everything and writes disk/K-HANGEUL.DSK
+clean.bat                     removes the build output (build/ folders, the contents of DIST/)
+requirements.txt              Python package list
 .gitignore                    keeps build output and the virtual environment out of git
 docs/
   MANUAL.md                   user manual (Korean)
   MANUAL_en.md                user manual (English)
   STRUCTURE.md                this document
+  TYPE.md, TYPE_en.md         the &TYPE command
+  TYPEC.md                    TYPEC (Korean and English in one file)
+  STYPE.md, STYPE_en.md       the &STYPE command
+  STYPEC.md                   STYPEC (Korean and English in one file)
+  MEMORY_LAYOUT.md, _en.md    the memory map
+  DOS_PATCHES.md, _en.md      what is patched in DOS
+  FONT_EDITOR.md              the font editor
 disk/
   K-HANGEUL.DSK               the finished user disk (boot it)
   dos33blank.dsk              the blank DOS 3.3 disk the user disk is made from
 src/
   make_all.bat, Makefile      builds everything
   README.md                   guide to the src folders
-  PYTHON.md, requirements.txt Python setup
-  driver/                     driver source, font build, memory and DOS notes
+  PYTHON.md                   Python setup
+  driver/                     driver source and font build
   type/, typec/               the &TYPE command and TYPEC
   stype/, stypec/             the &STYPE command and STYPEC
   fonteditor/                 the font editor and font.json

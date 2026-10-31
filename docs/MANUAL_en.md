@@ -14,7 +14,8 @@
 
 ## 2. What you need
 
-- Apple II Plus, 48K RAM, and a **language card (16K)**: the driver lives in the card.
+- Apple II Plus, 48K RAM, and a **language card (16K)**: the driver lives in the card. It also works on an Apple IIe, IIc and IIgs (the driver detects them at start-up; for the keyboard differences see the Shift notes in section 5).
+- Optional: Korean BASIC keywords need a separate add-on program, KBASIC. The driver only has the hooks for it; KBASIC itself is not in this repository. The driver works the same without it.
 - DOS 3.3 (48K). Use this disk's DOS, or copy the files to your own disk (section 8).
 
 

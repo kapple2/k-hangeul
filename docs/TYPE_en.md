@@ -110,4 +110,4 @@ Most of the time is drawing the Hangul. Reading the sectors directly leaves only
 
 ## See also
 
-`TYPEC` (`../typec/TYPEC.md`) is the same reader as a program of its own: `BRUN TYPEC` asks for a file name, for use at the `]` prompt without loading the `&` command.
+`TYPEC` (`TYPEC.md`) is the same reader as a program of its own: `BRUN TYPEC` asks for a file name, for use at the `]` prompt without loading the `&` command.

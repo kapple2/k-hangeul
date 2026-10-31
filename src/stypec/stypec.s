@@ -4,7 +4,7 @@
 ;   BRUN STYPEC           asks  FILE NAME  and prints the file you name; an empty line ends it
 ;   FILENAME,5            a wait of 5 ms between pixel rows may follow the name (0 to 255; default 0)
 ;
-; It is TYPEC with the strip rendering of score.inc (see STYPE.md), a program of its own: it needs
+; It is TYPEC with the strip rendering of score.inc (see docs/STYPE.md), a program of its own: it needs
 ; nothing installed and leaves nothing behind. Load address $8A00; the two sector buffers are at $9200
 ; and $9300, so BRUN STYPEC overwrites the top 2.5 KB of BASIC memory: run it from an empty program.
 

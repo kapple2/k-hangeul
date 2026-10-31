@@ -31,7 +31,7 @@ py -3 -c "import tkinter; print('tkinter ok')"
 py -3 -m venv .venv
 .venv\Scripts\activate
 python -m pip install --upgrade pip
-python -m pip install -r src\requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 나오려면 `deactivate`를 입력합니다. `.venv`는 `.gitignore`에 들어 있어서 저장소에 올라가지 않습니다.
@@ -41,8 +41,7 @@ python -m pip install -r src\requirements.txt
 
 ### 패키지 목록
 
-`src
-equirements.txt`에 목록이 있습니다. 그림 그리기에 `pillow`가 필요합니다. `py65`는 이 저장소에 없는 옛 시뮬레이션 도구에만 필요합니다.
+저장소 맨 위의 `requirements.txt`에 목록이 있습니다. 그림 그리기(`tools/render/`, `tools/perf/hgr2png.py`)에 `pillow`가 필요하고, 6502 시뮬레이터(`tools/perf/`)에 `py65`가 필요합니다. 디스크 빌드와 글꼴 편집기에는 둘 다 필요 없습니다.
 
 
 ### 명령
@@ -98,7 +97,7 @@ From the project folder (the one with `src` and `docs`):
 py -3 -m venv .venv
 .venv\Scripts\activate
 python -m pip install --upgrade pip
-python -m pip install -r src\requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 To leave, type `deactivate`. `.venv` is listed in `.gitignore`, so it is never committed.
@@ -108,8 +107,7 @@ To skip it, run `py -3 src\fonteditor\editor.py` with the system Python.
 
 ### Requirements
 
-`src
-equirements.txt` lists the packages. The picture tools need `pillow`. `py65` is needed only by an old simulation tool that is not in this repository.
+`requirements.txt` at the top of the repository lists the packages. The picture tools (`tools/render/`, `tools/perf/hgr2png.py`) need `pillow`; the 6502 simulator (`tools/perf/`) needs `py65`. The disk build and the font editor need neither.
 
 
 ### Commands

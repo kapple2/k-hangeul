@@ -1,5 +1,5 @@
 ; STYPE - the Applesoft "&" command STYPE: like TYPE, but each row of text appears smoothly,
-; one pixel row at a time from top to bottom. ca65 source. See STYPE.md.
+; one pixel row at a time from top to bottom. ca65 source. See docs/STYPE.md.
 ;
 ;   BRUN STYPE                         load and install (once)
 ;   & STYPE,"FILENAME"                 print a DOS text file

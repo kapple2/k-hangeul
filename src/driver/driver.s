@@ -15,7 +15,7 @@
 ;                  cannot change its own code or hold variables; those live in main RAM.
 ;   BANNER  $1CC0  startup banner and the prompt and CATALOG helpers, under the hi-res screen.
 ;
-; Main RAM used (see MEMORY_LAYOUT.md): $0800 font, $1980 text buffer, $1C60 row flags,
+; Main RAM used (see docs/MEMORY_LAYOUT.md): $0800 font, $1980 text buffer, $1C60 row flags,
 ; $1C80 blit scratch, $1FF0 blit variables, $9400-$95FF the driver's stubs and variables
 ; (state; named S_xxxx, xxxx being the stock text-page address it replaced).
 ;
@@ -41,8 +41,8 @@
 ; Loader. DOS BRUN loads the whole file at $0F94 and starts here.
 ; It copies LCIMG (the driver, loaded at $1000) to $D000 in the language card,
 ; copies the 3-byte and 6-byte patches below into DOS 3.3 in RAM, and enters INIT.
-; The patches are those of stock Hangeul2 and are described in DOS_PATCHES.md in this
-; folder: they add the DOS command HAN, which runs "sta $C080 / jmp INIT" (it only
+; The patches are those of stock Hangeul2 and are described in docs/DOS_PATCHES.md; they
+; add the DOS command HAN, which runs "sta $C080 / jmp INIT" (it only
 ; works while the banner and font sources are still in memory, i.e. not after boot).
 ; ---------------------------------------------------------------------------
 .segment "LOADER"

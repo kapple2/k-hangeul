@@ -1,6 +1,6 @@
 # STYPEC: 명령줄 `STYPE`
 
-`STYPEC`은 `TYPEC`에 `STYPE`의 부드러운 효과를 더한 것입니다(`../stype/STYPE.md` 참고). 글줄마다 화면 밖에 먼저 그린 뒤, 화면에 픽셀 줄 하나씩 위에서 아래로 보여 줍니다. 독립된 프로그램이므로 설치할 것이 없고(`&` 명령이 없음), 남기는 것도 없습니다.
+`STYPEC`은 `TYPEC`에 `STYPE`의 부드러운 효과를 더한 것입니다(`STYPE.md` 참고). 글줄마다 화면 밖에 먼저 그린 뒤, 화면에 픽셀 줄 하나씩 위에서 아래로 보여 줍니다. 독립된 프로그램이므로 설치할 것이 없고(`&` 명령이 없음), 남기는 것도 없습니다.
 
 
 ## 사용법
@@ -27,7 +27,7 @@ FILE NAME
 
 | 항목 | 값 |
 |---|---|
-| 원본 | `src/stypec/stypec.s`(`typec.s`에서 만듦), `../stype/score.inc`(줄 그리기 루틴, `STYPE`과 같이 씀), `../type/core.inc`(파일 읽기 코드) |
+| 원본 | `src/stypec/stypec.s`(`typec.s`에서 만듦), `src/stype/score.inc`(줄 그리기 루틴, `STYPE`과 같이 씀), `src/type/core.inc`(파일 읽기 코드) |
 | 빌드 | `src\stypec\build.bat`(또는 그 폴더에서 `make`). `make_all.bat`이 다른 것과 함께 만듭니다 |
 | 올라가는 주소 | `$8A00`, 951바이트(`$8A00-$8DB6`) |
 | 줄 버퍼 | 코드 바로 뒤의 512바이트(파일에는 들어 있지 않음) |
@@ -47,7 +47,7 @@ FILE NAME
 
 # STYPEC: the command-line `STYPE`
 
-`STYPEC` is `TYPEC` with the smooth effect of `STYPE` (see `../stype/STYPE.md`): each row of text is drawn off screen and then shown on the screen one pixel row at a time from top to bottom. It is a program of its own: it needs nothing installed (no `&` command) and leaves nothing behind.
+`STYPEC` is `TYPEC` with the smooth effect of `STYPE` (see `STYPE.md`): each row of text is drawn off screen and then shown on the screen one pixel row at a time from top to bottom. It is a program of its own: it needs nothing installed (no `&` command) and leaves nothing behind.
 
 
 ## Use
@@ -74,7 +74,7 @@ Press **Ctrl-C** while it prints: the printing stops after the byte being drawn,
 
 | item | value |
 |---|---|
-| source | `src/stypec/stypec.s` (from `typec.s`), `../stype/score.inc` (the strip routines, shared with `STYPE`), `../type/core.inc` (the file reader) |
+| source | `src/stypec/stypec.s` (from `typec.s`), `src/stype/score.inc` (the strip routines, shared with `STYPE`), `src/type/core.inc` (the file reader) |
 | build | `src\stypec\build.bat` (or `make` in that folder); `make_all.bat` builds it with everything else |
 | load address | `$8A00`, 951 bytes (`$8A00-$8DB6`) |
 | strip buffer | 512 bytes right after the code (not stored in the file) |

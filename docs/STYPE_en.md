@@ -3,7 +3,7 @@
 > 한국어: [STYPE.md](STYPE.md)
 
 
-`STYPE` is `TYPE` with a smooth effect: each row of text is drawn off screen first and then shown on the screen **one pixel row at a time, from top to bottom**, so the row seems to unroll instead of being typed letter by letter. Everything else is as in `TYPE` (see `../type/TYPE.md`): it prints N-byte (keystroke) Hangul text from a DOS text file or from memory, and the text goes through the K-HANGEUL driver.
+`STYPE` is `TYPE` with a smooth effect: each row of text is drawn off screen first and then shown on the screen **one pixel row at a time, from top to bottom**, so the row seems to unroll instead of being typed letter by letter. Everything else is as in `TYPE` (see `TYPE.md`): it prints N-byte (keystroke) Hangul text from a DOS text file or from memory, and the text goes through the K-HANGEUL driver.
 
 Only the drawing of each row is smooth. The old text scrolls up one text row at a time, as always.
 
@@ -56,7 +56,7 @@ Press **Ctrl-C** while it prints: the printing stops after the byte being drawn,
 
 | item | value |
 |---|---|
-| source | `src/stype/stype.s` (the `&` command, from `type.s`), `score.inc` (the strip routines, shared with `STYPEC`), `../type/core.inc` (the file reader, shared with `TYPE` and `TYPEC`) |
+| source | `src/stype/stype.s` (the `&` command, from `type.s`), `score.inc` (the strip routines, shared with `STYPEC`), `src/type/core.inc` (the file reader, shared with `TYPE` and `TYPEC`) |
 | driver | `LINEX`, `NEXTROW`, `NLHOOK`, `CALLSTRIP` in the free `$D000` area of `driver.s`; state bytes `$95DD` (strip mode), `$95DE/$95DF` (strip address), `$95E0/$95E1` (the routine called at the end of a row) |
 | build | `src\stype\build.bat` (or `make` in that folder); `make_all.bat` builds it with everything else |
 | link config | `stype.cfg` |
@@ -83,4 +83,4 @@ Press **Ctrl-C** while it prints: the printing stops after the byte being drawn,
 
 ## See also
 
-`STYPEC` (`../stypec/STYPEC.md`) is the same effect as a program of its own, asking for a file name. `TYPE.md` describes the file reader and the text format.
+`STYPEC` (`STYPEC.md`) is the same effect as a program of its own, asking for a file name. `TYPE.md` describes the file reader and the text format.

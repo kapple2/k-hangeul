@@ -1,6 +1,6 @@
 # TYPEC: 명령줄 TYPE
 
-`BRUN TYPEC`은 N바이트(자판 입력) 한글 글이 들어 있는 DOS 텍스트 파일을 찍습니다. `]` 프롬프트에서 쓰도록 만든 것입니다. `&TYPE` 명령과 같은 파일 읽기 코드(`../type/core.inc`)를 쓰는 독립된 프로그램입니다. 아무것도 설치하지 않고, 메모리에 아무것도 남기지 않으며, `HIMEM`도 바꾸지 않습니다.
+`BRUN TYPEC`은 N바이트(자판 입력) 한글 글이 들어 있는 DOS 텍스트 파일을 찍습니다. `]` 프롬프트에서 쓰도록 만든 것입니다. `&TYPE` 명령과 같은 파일 읽기 코드(`src/type/core.inc`)를 쓰는 독립된 프로그램입니다. 아무것도 설치하지 않고, 메모리에 아무것도 남기지 않으며, `HIMEM`도 바꾸지 않습니다.
 
 ```
 ]BRUN TYPEC
@@ -25,12 +25,12 @@ FILE NAME
 
 | 항목 | 값 |
 |---|---|
-| 원본 | `src/typec/typec.s`, `../type/core.inc` 포함 |
+| 원본 | `src/typec/typec.s`, `src/type/core.inc` 포함 |
 | 빌드 | `src\typec\build.bat`(또는 `make`). `build.bat disk`는 `TYPEC`을 프로젝트 디스크에 복사합니다 |
 | 올라가는 주소 | `$8E00`, 486바이트. 섹터 버퍼는 `$9200`과 `$9300` |
 | 디스크 파일 | `TYPEC`(바이너리) |
 
-BASIC 문자열 영역의 `HIMEM` 바로 아래에 올라가므로, 그 근처에 문자열이 많은 BASIC 프로그램이 있는 동안에는 실행하지 마세요. 프로그램에서는 `&TYPE`(`../type/TYPE.md`)을 쓰세요.
+BASIC 문자열 영역의 `HIMEM` 바로 아래에 올라가므로, 그 근처에 문자열이 많은 BASIC 프로그램이 있는 동안에는 실행하지 마세요. 프로그램에서는 `&TYPE`(`TYPE.md`)을 쓰세요.
 
 
 ---
@@ -38,7 +38,7 @@ BASIC 문자열 영역의 `HIMEM` 바로 아래에 올라가므로, 그 근처�
 
 # TYPEC: the command-line TYPE
 
-`BRUN TYPEC` prints a DOS text file of N-byte (keystroke) Hangul text, for use at the `]` prompt. It is the same file reader as the `&TYPE` command (`../type/core.inc`) in a program of its own: it installs nothing, leaves nothing in memory, and does not change `HIMEM`.
+`BRUN TYPEC` prints a DOS text file of N-byte (keystroke) Hangul text, for use at the `]` prompt. It is the same file reader as the `&TYPE` command (`src/type/core.inc`) in a program of its own: it installs nothing, leaves nothing in memory, and does not change `HIMEM`.
 
 ```
 ]BRUN TYPEC
@@ -63,9 +63,9 @@ Press **Ctrl-C** while it prints: the printing stops after the byte being drawn,
 
 | item | value |
 |---|---|
-| source | `src/typec/typec.s`, with `../type/core.inc` |
+| source | `src/typec/typec.s`, with `src/type/core.inc` |
 | build | `src\typec\build.bat` (or `make`); `build.bat disk` copies `TYPEC` to the project disk |
 | load address | `$8E00`, 486 bytes; sector buffers `$9200` and `$9300` |
 | disk file | `TYPEC` (binary) |
 
-It loads in the BASIC string area just under `HIMEM`, so do not run it while a program holds strings that near the top. For a program, use `&TYPE` (`../type/TYPE.md`).
+It loads in the BASIC string area just under `HIMEM`, so do not run it while a program holds strings that near the top. For a program, use `&TYPE` (`TYPE.md`).

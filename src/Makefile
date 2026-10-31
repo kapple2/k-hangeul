@@ -1,5 +1,5 @@
 # Build everything into ..\DIST: make [all|clean]
-#   builds the driver, TYPE, TYPEC, STYPE and STYPEC from assembly, then DIST\K-HANGEUL.DSK, bin\ and docs\.
+#   builds the driver, TYPE, TYPEC, STYPE and STYPEC from assembly, then DIST\K-HANGEUL.DSK, bin\ and the manual.
 # Change CC65, ACX or PYTHON on the command line if your tools are elsewhere.
 CC65   ?= D:/opt/devtools/asm/cc65/bin
 ACX    ?= C:/bin/acx.exe

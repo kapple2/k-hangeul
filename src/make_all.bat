@@ -1,5 +1,5 @@
 @echo off
-rem Build everything into ..\DIST: the five programs, the disk image, and the user documents.
+rem Build everything into ..\DIST: the five programs, then the disk image and the user manual.
 rem   make_all.bat          build
 rem   make_all.bat clean    remove the build folders and ..\DIST
 rem Uses GNU make if it is on PATH, otherwise calls the build.bat files directly.

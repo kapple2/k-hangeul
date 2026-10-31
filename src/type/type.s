@@ -1,5 +1,5 @@
 ; TYPE - the Applesoft "&" command TYPE: print N-byte (keystroke) Hangul text.
-; ca65 source. See TYPE.md for the manual.
+; ca65 source. See docs/TYPE.md for the manual.
 ;
 ;   BRUN TYPE                          load and install (once)
 ;   & TYPE,"FILENAME"                  print a DOS text file
