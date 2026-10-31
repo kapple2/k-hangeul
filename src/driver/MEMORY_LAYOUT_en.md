@@ -33,7 +33,7 @@ See `DOS_PATCHES_en.md` for the changes made to DOS 3.3 in RAM.
 | Hangeul2 driver | language card, `$D000–$FFFF` |
 | English font, 128 glyphs × 16 bytes (10 lines used) | language card, `$D860–$E05F`, 2,048 bytes (loaded from `FONT6X10` at `$7200`, copied by `INIT`) |
 
-`$7200–$79FF` is only a staging area: `HELLO` loads `FONT6X10` there and `INIT` copies it into the card, so the BASIC program may use that area afterwards. `$D000–$D0AF` holds the Shift mod, Ctrl-A and strip-mode routines (`FIXCONT` to `SHREPL`). `$D0B0–$D3FF` is free; the old 6×8 English table that was there is gone. The English glyph is found with `base + code × 16`.
+`$7200–$79FF` is only a staging area: `HELLO` loads `FONT6X10` there and `INIT` copies it into the card, so the BASIC program may use that area afterwards. `$D000–$D0AF` holds the Shift mod, Ctrl-A and strip-mode routines (`FIXCONT` to `SHREPL`). `$1CBD` is one byte of the driver's state: bit 7 set on an Apple IIe, IIc or IIgs (set by the loader). `$D0B0–$D132` holds `CATFIX` (the `CATALOG` prompt fix) and the two hooks for the optional KBASIC add-on (`KBIN`, `KBOUT`); `$D133–$D3FF` (717 bytes) is free. The old 6×8 English table that was there is gone. When the KBASIC add-on is loaded it sits in main RAM at `$8A00–$93FF` and lowers `HIMEM` to `$8A00` (see the KBASIC documents in the Korean BASIC project). The English glyph is found with `base + code × 16`.
 
 `$0800–$1FFF` is 6,144 bytes. The pieces above use 6,042 of them; 102 bytes are free.
 

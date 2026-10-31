@@ -21,15 +21,15 @@ The loader copies these bytes into DOS before it enters `INIT`. They are the sam
 
 ## 2. Patches made by `INIT` (CATALOG paging)
 
-`INIT` changes two places in the CATALOG command, only after checking the old bytes are the DOS 3.3 ones (otherwise it leaves DOS alone):
+`INIT` changes two places in the CATALOG command, only after checking the instructions are the expected ones (otherwise it leaves DOS alone). It checks the opcodes, not the line counts, because the DOS on the project disk pages at 22 and 21 lines (`$16`, `$15`) where stock DOS 3.3 uses 24 and 23 (`$18`, `$17`); both get the same patch:
 
 | address | stock | now | meaning |
 |---|---|---|---|
-| `$ADA3-$ADA7` | `LDA #$18 / STA $B39D` | `JSR CATINIT / NOP / NOP` | The line counter for the first page starts from the cursor row and the window height, not 24, so the page fills without scrolling first. |
-| `$AE3C-$AE3D` | `LDA #$17` | `LDA #$0B` | Lines on each later page. |
-| `$AE39-$AE3B` | `JSR $FD0C` (RDKEY) | `JSR CATWAIT` | The wait for a key between pages. `CATWAIT` marks `NOPR` so the `]` is not drawn during the wait. |
+| `$ADA3-$ADA7` | `LDA #$18` (stock) or `#$16` `/ STA $B39D` | `JSR CATINIT / NOP / NOP` | The line counter for the first page starts from the cursor row and the window height, not 24, so the page fills without scrolling first. |
+| `$AE3C-$AE3D` | `LDA #$17` (stock) or `#$15` | `LDA #$0B` | Lines on each later page. |
+| `$AE39-$AE3B` | `JSR $FD0C` (RDKEY) | `JSR CATWAIT` | The wait for a key between pages. `CATWAIT` marks `NOPR` so the `]` is not drawn during the wait, and first calls `CATFIX`: a full page leaves the cursor on an empty row, where the driver had already drawn a `]` before the wait began, so `CATFIX` draws a space over it. |
 
-`CATINIT` and `CATWAIT` are in the banner segment (`$1CC0`).
+`CATINIT` and `CATWAIT` are in the banner segment (`$1CC0`); `CATFIX` is in the free part of the card (`$D000` area).
 
 
 ## 3. Memory DOS uses that the driver moves

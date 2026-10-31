@@ -204,6 +204,8 @@ S_06BF = $94B4            ; was $06BF in the text page
 S_056B = $946B            ; was $056B in the text page
 ENGSRC = $7200            ; where HELLO loads FONT6X10, 2048 bytes
 SW2 = $C063                ; pushbutton 2: the Shift key mod (bit 7 set while Shift is held)
+SHMACH = $1CBD             ; bit 7 set on an Apple IIe, IIc or IIgs (ROM ID $FBB3 = $06), found by the loader; $1CBD-$1CBF were unused
+OAPPLE = $C061             ; pushbutton 0 = Open-Apple on a IIe-family machine (bit 7 set while it is held)
 SHIDLE = $95DC             ; bit 7 of $C063 at start-up (Shift not held); the state area is filled with $A0 before INIT sets it
 STRIPF = $95DD             ; bit 6 set ($40) while the glyph drawing goes to the strip buffer (STYPE); 0 or $A0 otherwise
 STRIPLO = $95DE            ; address of the strip buffer (set by STYPE)

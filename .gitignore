@@ -14,3 +14,36 @@ disk/NEWHANGEUL.DSK
 
 # font editor backup, written when font.json is saved
 font.prev.json
+
+# video and screen recordings
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.gif
+
+# documents and archives that are not source (reference PDFs, saved web pages, zips)
+*.pdf
+*.mhtml
+*.zip
+
+# editor, IDE and OS files
+.cursor/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+nul
+
+# emulator output
+mame/
+snap/
+*.sta
+*.nv
+
+# scratch and temporary files
+*.tmp
+*.bak
+*.log
+tmp/

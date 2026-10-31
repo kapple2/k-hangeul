@@ -86,6 +86,8 @@ Top: the key to press. Bottom: the jamo it types. The keys are laid out as on th
   ```
 
   (On the Apple II Plus the Shift key only selects the upper symbol of a key; the computer itself cannot tell it is held. So all of these can be typed without the Shift key mod.)
+
+  **On an Apple IIe, IIc or IIgs** the keyboard is different: Shift+`-` gives `_` and Shift+`;` gives `:`, and `*` is Shift+8. The driver knows this and, in Hangul mode, turns `_` into `=` (ㄸ) and `:` into `+` (ㅖ), so the chart above works on those machines too. (The `:` key therefore does not type ₩ in Hangul mode on them.) ㅃ is Shift+8 (`*`) on a IIe, as it is Shift+`:` on the II Plus.
 - **With the Shift key mod**, the tense consonants and ㅒ ㅖ can also be typed with Shift, as on a normal 2-set keyboard: Shift+R = ㄲ, Shift+E = ㄸ, Shift+Q = ㅃ, Shift+T = ㅆ, Shift+W = ㅉ, Shift+O = ㅒ, Shift+P = ㅖ. Without the mod use the `-` `=` `*` `<` `>` `;` `+` keys above (both work). It acts only in Hangul mode, and the text is stored as before, so existing programs and text files do not change.
 
   The keys used with the Shift key mod, as they sit on the keyboard:
@@ -98,6 +100,7 @@ Top: the key to press. Bottom: the jamo it types. The keys are laid out as on th
   ```
   - The Shift key mod connects the Shift key to game-port pushbutton 2 (`$C063`). It was checked in MAME (the Apple II Plus default "SW2 = Shift"). The driver remembers the state of this button at start-up as "Shift not held", so **do not hold Shift or game button 2 while booting.**
   - Holding game button 2 looks like Shift. It also works in the AppleWin emulator, as long as joystick 2 is disabled there.
+  - **On an Apple IIe, IIc or IIgs the Shift key cannot be read by software** (on the IIe and the Enhanced IIe the board pad that would connect it is open), so the driver detects these machines at start-up and uses the **Open-Apple key** instead: hold Open-Apple and press R E Q T W O P to get ㄲ ㄸ ㅃ ㅆ ㅉ ㅒ ㅖ. In AppleWin, Open-Apple is the Left Alt key (Solid-Apple is Right Alt). The Shift key itself is ignored for this on those machines, and the `-` `=` `*` `<` `>` `;` `+` keys work everywhere.
 - Compound vowels and final clusters are typed as the two letters in a row: ㅘ = H K, ㅝ = N J, ㅢ = M L, ㄳ = R T, ㄺ = F R.
 - Example: `한글` is **Ctrl-K** `G K S R M F` **Ctrl-A**; `까따빠` is **Ctrl-K** `- K = K * K` **Ctrl-A**.
 - The left arrow (backspace) deletes.

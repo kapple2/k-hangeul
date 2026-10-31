@@ -35,6 +35,7 @@
 
 .import __LCIMG_LOAD__, __LCIMG_SIZE__
 .import __BANNER_LOAD__, __BANNER_RUN__, __BANNER_SIZE__
+.export COUT, BHEX, BPAR, BDEC, NUM          ; the labels KBASIC calls (written to the label file by ld65 -Ln)
 
 ; ---------------------------------------------------------------------------
 ; Loader. DOS BRUN loads the whole file at $0F94 and starts here.
@@ -48,6 +49,13 @@
 Loader:
         lda  LCROMWR                ; $C081 twice: language card RAM write enabled
         lda  LCROMWR
+        ldx  #$00                   ; the ROM is visible here: $FBB3 is $06 on a IIe, IIc and IIgs ($EA on a II Plus)
+        lda  $FBB3
+        cmp  #$06
+        bne  @notie
+        ldx  #$80
+@notie:
+        stx  SHMACH                 ; those machines have no readable Shift key: SHFIX uses Open-Apple there
         lda  #<__LCIMG_LOAD__
         sta  $06
         lda  #>__LCIMG_LOAD__
@@ -138,9 +146,32 @@ SHFIX:
         bpl  @out
         stx  P2H
         sta  P2L
+        bit  SHMACH
+        bpl  @mod
+        and  #$7F                       ; IIe-family keyboard: Shift+- is _ and Shift+; is :, where the II Plus keyboard gives
+        cmp  #$5F                       ; = and +. Typed in Hangul mode they mean the same, ㄸ and ㅖ, as the manual says
+        bne  @c1
+        lda  #$BD                       ; =
+        bne  @set
+@c1:
+        cmp  #$3A
+        bne  @oa
+        lda  #$AB                       ; +
+@set:
+        sta  P2L
+        bne  @back
+@oa:
+        lda  OAPPLE                     ; The Shift key cannot be read on a IIe (pad X6 is open on the IIe and the
+        bpl  @back                      ; Enhanced IIe), so Open-Apple (Left Alt in AppleWin) takes its place
+        bmi  @shift
+@mod:
         lda  SW2
         eor  SHIDLE                     ; differs from the level at start-up: Shift is held
         bpl  @back
+        lda  SW2                        ; read it again: a button that is not wired can float
+        eor  SHIDLE
+        bpl  @back
+@shift:
         lda  P2L
         and  #$5F                       ; the letter, in capitals
         ldx  #$07
@@ -173,7 +204,7 @@ CLOSERUN:
 @cr:
         lda  #$8D
         sta  INBUF,x
-        rts
+        jmp  KBIN                       ; Korean keywords: the add-on (KBASIC) may rewrite the line; X stays the CR index
 ; ---------------------------------------------------------------------------
 ; Strip mode, for the STYPE and STYPEC programs: smooth rendering of one text row.
 ; While bit 6 of STRIPF is set ($40; the state page is filled with $A0 at start, which is "off") the glyph drawing writes the 12 pixel rows of the current text row into a buffer
@@ -234,6 +265,91 @@ SHKEYS:
         .byte $52,$45,$51,$54,$57,$4F,$50,$40   ; R E Q T W O P, and @ (an Apple II Plus keyboard gives @ for Shift+P)
 SHREPL:
         .byte $AD,$BD,$AA,$BC,$BE,$BB,$AB,$AB   ; - = * < > ; + +  (high bit set, as a key arrives)
+
+; CATALOG fills a page, and the CR after its last line puts the cursor on an empty row, where CHECK draws a "]"
+; as for any typed line. That happens before the key wait starts, so NOPR is too late: draw a space over it.
+CATFIX:
+        ldy  #$00
+        lda  (BASL),y
+        and  #$7F
+        cmp  #$5D                       ; "]" in column 0
+        bne  @x
+        lda  CH
+        cmp  #$01
+        bne  @x
+        lda  #$00
+        sta  CH
+        lda  HMODE
+        pha
+        lda  #$00
+        sta  HMODE
+        txa
+        pha
+        tya
+        pha
+        lda  #$20
+        sta  CHAR
+        jsr  DISP
+        pla
+        tay
+        pla
+        tax
+        pla
+        sta  HMODE
+        lda  #$00
+        sta  CH
+@x:     rts
+; ---------------------------------------------------------------------------
+; Korean keyword add-on (KBASIC). It is optional: it lives in main RAM at KBBASE, loaded by BRUN KBASIC.
+; The driver only checks for its signature ("KB" at KBBASE+3) and calls two entries:
+;   KBBASE+5  KBMOD_IN   end of a typed line. X = index of the CR in INBUF, in and out. A and Y are free.
+;   KBBASE+8  KBMOD_OUT  one character on its way to COUT. A = the character. Carry set on return: the add-on
+;                        has dealt with it and the driver must not draw it. X and Y are saved here.
+; Without the add-on both hooks do nothing.
+; ---------------------------------------------------------------------------
+KBBASE      = $8A00
+KBSIG       = KBBASE+3
+KBMOD_IN    = KBBASE+5
+KBMOD_OUT   = KBBASE+8
+KBIN:
+        lda  KBSIG
+        cmp  #'K'
+        bne  @r
+        lda  KBSIG+1
+        cmp  #'B'
+        bne  @r
+        jmp  KBMOD_IN
+@r:
+        rts
+KBOUT:
+        pha                             ; the original first instruction of COUT
+        sta  CHAR                       ; kept for the original path; COUT sets it again
+        lda  KBSIG
+        cmp  #'K'
+        bne  @orig
+        lda  KBSIG+1
+        cmp  #'B'
+        bne  @orig
+        txa
+        pha
+        tya
+        pha
+        lda  CHAR
+        jsr  KBMOD_OUT
+        pla
+        tay
+        pla
+        tax
+        bcs  @eat
+@orig:
+        pla                             ; the character again: CHAR may have been overwritten by the add-on's own output
+        pha
+        sta  CHAR
+        and  #$7F                       ; the original second instruction
+        jmp  COUT_GO
+@eat:
+        pla                             ; as the end of COUT: A is the character again
+        rts
         .res 1024-(*-FREE_D000)
 
 ; ==========================================================================
@@ -689,9 +805,15 @@ BCP:
         lda  $ADA3                  ; D73E  AD A3 AD
         cmp  #$A9                   ; D741  C9 A9
         bne  DPX                    ; D743  D0 65
-        lda  $ADA4                  ; D745  AD A4 AD
-        cmp  #$18                   ; D748  C9 18
-        bne  DPX                    ; D74A  D0 5E
+        ; $ADA4 is the page length: $18 in stock DOS 3.3, $16 in the DOS of the project disk: not checked
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+
         lda  $ADA5                  ; D74C  AD A5 AD
         cmp  #$8D                   ; D74F  C9 8D
         bne  DPX                    ; D751  D0 57
@@ -704,9 +826,15 @@ BCP:
         lda  $AE3C                  ; D761  AD 3C AE
         cmp  #$A9                   ; D764  C9 A9
         bne  DPX                    ; D766  D0 42
-        lda  $AE3D                  ; D768  AD 3D AE
-        cmp  #$17                   ; D76B  C9 17
-        bne  DPX                    ; D76D  D0 3B
+        ; $AE3D is the length of the next pages: $17 in stock DOS 3.3, $15 in the DOS of the project disk: not checked
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+
         lda  $AE39                  ; D76F  AD 39 AE
         cmp  #$20                   ; D772  C9 20
         bne  DPX                    ; D774  D0 34
@@ -761,7 +889,10 @@ STATEINIT:
         sta  STATEBASE+$100,x
         inx
         bne  @fill
-        jmp  STOCKINIT
+        lda  SW2                        ; the level of the Shift mod input while Shift is not held (see SHFIX). It has to be
+        and  #$80                       ; read here: the fill above would overwrite it (it used to be set in ENGCOPY, so
+        sta  SHIDLE                     ; SHIDLE was always $A0 and a machine whose $C063 idles low, such as a IIe, saw
+        jmp  STOCKINIT                  ; Shift held all the time: every R E Q T W O P came out as a double consonant)
 ; ---------------------------------------------------------------------------
 ; The English font: FONT6X10 is loaded at ENGSRC ($7200) by HELLO and copied here by INIT while the card
 ; is still writable. 128 glyphs of 16 bytes: the 10 lines of the glyph, then 6 unused bytes (so a glyph
@@ -813,9 +944,6 @@ ENGCOPY:
         lda  #$00
         sta  CASEMODE
         sta  STRIPF                     ; strip mode off (see LINEX)
-        lda  SW2                        ; the level of the Shift mod input while Shift is not held (see SHFIX)
-        and  #$80
-        sta  SHIDLE
         lda  LCRAMRD                    ; $C080: RAM read, write protected
         rts
 ENGFONT:
@@ -2381,8 +2509,8 @@ L_EE50:
 ; COUT: the character output routine behind CSW
 ; ==========================================================================
 COUT:
-        pha                         ; EE63  48
-        and  #$7F                   ; EE64  29 7F
+        jmp  KBOUT                  ; was pha / and #$7F (EE63): Korean keywords, LIST side; continues at COUT_GO
+COUT_GO:
         sta  CHAR                   ; EE66  8D AD 94
         stx  S_0667                 ; EE69  8E 94 94
         sty  S_0668                 ; EE6C  8C 95 94
@@ -4895,6 +5023,9 @@ WRAP:
 CATWAIT:
         lda  #$01                   ; 1F36  A9 01
         sta  NOPR                   ; 1F38  8D FB 1F
+        lda  LCRAMRD                    ; $C080: the driver is visible while CATFIX runs
+        jsr  CATFIX
+        lda  LCROMRD                    ; $C082: back to ROM, as the stubs do
         jsr  L_FD0C                 ; 1F3B  20 0C FD
         pha                         ; 1F3E  48
         lda  #$00                   ; 1F3F  A9 00
