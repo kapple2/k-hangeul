@@ -92,7 +92,7 @@ build.bat
 What `build.bat` does:
 
 1. It runs `src\make_all.bat`:
-   1. It builds the driver. `src\driver\fontgen.py` turns `src\fonteditor\font.json` into `FONT12.bin` (Hangul) and `FONT6X10.bin` (English), and cc65 turns `driver.s` into `K-HANGEUL.bin`.
+   1. It builds the driver. `src\driver\fontgen.py` turns `src\fonteditor\font.json` into `FONT12.bin` (Hangul) and `FONT6X10.bin` (English), and cc65 turns `driver.s` into `K-HANGEUL.bin`. It assembles `driver.s` three times: `build-stock\` (the stock driver, kept only to check that nothing changed), `build-sat\` (the Saturn arrangement) and `build\` (the shipped driver). `src\tools\satpack.py` then writes the byte differences between the last two into the end of `build\K-HANGEUL.bin`; the loader applies them only when it finds a Saturn card (see `docs/MEMORY_LAYOUT_en.md`).
    2. It builds `TYPE`, `TYPEC`, `STYPE` and `STYPEC`.
    3. `src\tools\mkdist.py` converts the sample text (`src\samples\utf8txt\`) to N-byte files, then puts the programs and samples on a copy of the blank DOS 3.3 disk (`disk\dos33blank.dsk`) to make `DIST\K-HANGEUL.DSK`.
 2. It copies `DIST\K-HANGEUL.DSK` to `disk\K-HANGEUL.DSK`.

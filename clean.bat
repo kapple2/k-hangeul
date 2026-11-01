@@ -5,6 +5,8 @@ setlocal
 cd /d "%~dp0"
 
 for %%d in (driver type typec stype stypec) do (
+  if exist "src\%%d\build-sat" rd /s /q "src\%%d\build-sat"
+  if exist "src\%%d\build-stock" rd /s /q "src\%%d\build-stock"
   if exist "src\%%d\build" rd /s /q "src\%%d\build"
 )
 for /d /r "src" %%d in (__pycache__) do if exist "%%d" rd /s /q "%%d"

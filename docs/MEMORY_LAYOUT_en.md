@@ -68,3 +68,93 @@ The driver stays in the language card. DOS stays at `$9600`. Putting DOS in that
 | `STYPEC` | `$8A00` | 951 bytes | the same area as `STYPE`, overwritten while it runs |
 
 The strip buffer is 12 pixel rows of 42 bytes for the text row `STYPE` is drawing (see `STYPE.md`). The driver's strip mode adds about 200 bytes of code to `$D000-$D0AF` (`LINEX`, `NEXTROW`, `NLHOOK`, `CALLSTRIP`, together with the Shift and Ctrl-A routines).
+
+
+## Saturn 128KB card (draft, not built yet)
+
+> Status: a design draft on the `saturn` branch. No code has changed, and anything marked "undecided" below has not been settled. It is written down first so that the kScheme side can design its console hook against it.
+
+### Goals
+
+- One file (`K-HANGEUL.bin`). The arrangement is chosen once, at load time. The file holds the plain driver and, at its end, a list of byte patches for the Saturn arrangement (written by `src/tools/satpack.py`); the loader applies them only when it finds a Saturn card, so a plain card loads exactly the plain driver.
+- On a 16KB language card (or when no Saturn card is found) it behaves exactly as today. The memory map is the same too.
+- On a Saturn card the driver, fonts, text buffer and variables go into the top bank of the card, and main RAM `$0800–$1FFF` is freed.
+- BASIC's `HIMEM` stays at `$9400` or better.
+
+### The bank
+
+- K-HANGEUL uses the top bank (the eighth on a 128KB card, bank 7). It is found at load time.
+- The bank holds the driver code, the English and Korean fonts (in a packed form on Saturn), the 46×16 text buffer, the row flags, the variables, and the prompt and `CATALOG` helper code.
+- A signature marks this bank: the four bytes `KHG1` at `$FFF5–$FFF8` (the driver image ends at `$FFF4`, and `$FFFA–$FFFF` are the vectors). `$FF80`, where kScheme writes its detection tag, lies inside the driver code, so kScheme must save and restore that byte.
+- The detection that finds banks must not destroy a bank's contents (save the byte before writing the tag, then restore it, last bank first). K-HANGEUL's loader does so with the byte at `$FFF9` of banks 1–7. It takes the highest bank that kept its own tag as the top bank, and writes the switch that selects it to `$D3FF` of that bank (the driver reads it to set the operand of `SatEnter`).
+- kScheme does not use this bank as its file cache.
+
+### What stays in main RAM: `$9400–$95FF` (the same in both arrangements)
+
+- The five entry addresses are the same as today: `$9400`, `$940A`, `$9414`, `$941E`, `$9571`. The I/O hooks (CSW, KSW) point at them.
+- In the Saturn arrangement each entry becomes `lda #n` / `jmp TRAMP` (5 bytes). The address of `TRAMP` is undecided and lies inside this block.
+- What `TRAMP` does: it reads the caller's card state from the state byte below, selects the K-HANGEUL bank, maps the image, calls the routine, and returns to the state the state byte describes.
+- Registers: A, X, Y and the flags go in and come out the same way as with today's stubs.
+- On a Saturn card the driver runs with the card write enabled (`$C083` twice), because its text buffer and variables are in the bank. There is no self-modifying code. On a plain card the driver is write protected as before.
+
+### State byte `$95E2`
+
+Saturn bank selects are write-only, and an Apple II+ cannot read back the state of a language card. So the caller writes its "resting state" into this byte, and `TRAMP` reads the state to restore from it.
+
+| Bits | Meaning |
+|---|---|
+| 0–2 | Reserved, must be 0: the caller is in Saturn bank 0 (home). `TRAMP` always returns to bank 0 |
+| 3 | `$D000` page: 1 = first page (the `$C08B` family), 0 = second page |
+| 4 | 1 = reads card RAM, 0 = reads ROM |
+| 5 | 1 = card write enabled, 0 = write protected |
+| 6–7 | Unused (0) |
+
+- BASIC value (card ROM read, write protected, bank 0, first page): `$08`. This is the default that `INIT` sets.
+- kScheme value (bank 0, first page, RAM read, write enabled): `$38`.
+- The byte must always be true: whoever switches the card keeps it matching what the card really is. `TRAMP` restores from it on every call.
+- kScheme writes it when it takes over the console (`$38`), and sets it back to `$08` when it hands the console back to BASIC. Around every ROM call kScheme's `romcall` also writes `$08` before it switches the card out and `$38` after it switches the card back in. This matters because the ROM `COUT` and `RDKEY` reach the console through CSW and KSW, so `TRAMP` is then entered with the ROM visible.
+- Saturn bank changes inside kScheme's arena access (`far_sel`) do not call the console, so they need no update.
+
+### Nested entries and the depth byte
+
+The driver calls its own input hook from inside itself (the line input), so entries nest. `SATDEPTH` (`$9511`) counts them. An inner leave only switches the ROM in and keeps the bank, as the stock stubs do. Only the outermost leave selects bank 0 and sets the caller's card state from `$95E2`. The end of the line input rewinds the stack and skips the outer leave, so it goes through a separate exit that sets the depth to 1 first. While the driver waits for a key inside a line input the count reads 2 (the line input rewinds the stack and so skips one leave); in the caller's domain it reads 0. When kScheme takes over the console it writes `SATDEPTH` = 0 together with `SATSTATE` = `$38`, and it writes 0 and `$08` when it gives the console back. Status: built and tested in MAME with `-sl0 ssram` (the driver in bank 7 gives the same text buffer and the same visible screen as the stock driver after boot, `PRINT`, and `CATALOG`). The bytes used inside `$9400–$95FF` are `$9511–$951F`, `$9521–$9547`, `$9599–$95A5` and `$95E2–$95F7`.
+
+### What stays as it is
+
+- The K-BASIC hooks `KBBASE=$8A00` (signature "KB" at `+3`, entries at `+5` and `+8`).
+- The `$95DD–$95E1` bytes used by STYPE.
+- `HELLO` loading `FONT12` at `$6000` and `FONT6X10` at `$7200`. Rule: these are only staging areas. The driver's `INIT` copies both fonts into the bank before anything else uses that memory, so kScheme may load over `$6000–$99C0` only after K-HANGEUL has been loaded. Load order is K-HANGEUL first, then kScheme.
+
+### What changes (not built yet)
+
+- K-BASIC reads `$C080` from main RAM to check that `COUT` is a `JMP`. On Saturn that shows whichever bank is selected, so it must select the K-HANGEUL bank first. Also `BHEX`, `BPAR`, `BDEC` and `NUM` move into the bank, so they need entries that go through `TRAMP`.
+- kScheme: it must leave this block (`$9400–$95FF`) free, and plans its own layout with the hi-res screen (page 1, `$2000–$3FFF`) and `$0800–$1FFF` free of K-HANGEUL.
+
+### Undecided
+
+- Status of the implementation: built and tested in MAME (`-sl0 ssram`): card and top-bank detection, the signature, the patch lists, the trampoline, and the Saturn banner line (`$D000 새턴 카드 뱅크7에 로드됨`: loaded at `$D000` in the Saturn card, bank 7). Not built yet: moving the fonts, the text buffer, the variables and the banner out of `$0800–$1FFF` into the bank. See "What is left" below.
+- Whether to shrink the state block below `$9400–$95FF` (to about 250 bytes, which would also move the plain-card state addresses).
+- All Saturn test results. Bank switching has not yet been tried in MAME (`-sl0 ssram`).
+
+
+### What is built
+
+All of it is built and tested in MAME (`-sl0 ssram`; the stock build on a plain card and this build on a Saturn card give the same screens for boot, Hangul typing, `RUN`, `CATALOG` with paging, the bell, `HAN`, `& TYPE`, `& STYPE`, and all 11,172 syllables):
+
+- The Korean font (packed to 18 bytes a glyph) and the English font (glyphs 31–127, 10 bytes each) are in the bank. The Korean font is in the other `$D000` page, which `SatUnpack` (at `$E000`) selects only while it reads a glyph.
+- The text buffer (`BUF`, 736 bytes), the row flags and the variables are in the bank, in the page the driver runs in, behind the English font (`$DC2A–$DF75`). The driver runs with the card write enabled while it is inside. `GLY` and `GLYHI` are at `$E048–$E05F` because they are written while the other page is selected.
+- The prompt routines (`CHECK`, `DRAWPR`, `WRAP`), the bell (`SatBell`, no ROM call) and the `CATALOG` page routines (`CatwaitB`, `CatinitB`) are in the bank, in the padding of the driver page. The machine flag (`SHMACH`) and the banner flag (`BANOK`) are bank variables; the loader copies `SHMACH` there.
+- The start-up banner runs once, at boot, from `$6000–$630F` (free after the loader has packed the fonts). On the `HAN` command the banner is not shown again.
+- DOS reaches three small stubs in the `$9400–$95FF` block: `CATWAIT` at `$9571` (6 bytes), `CATINIT` at `$9470` (6 bytes) and `HAN` at `$9481` (7 bytes). The loader writes the `HAN` address into DOS.
+- One thing needed care: the ROM's `RDKEY` reads and writes the cursor cell of the text buffer through `BASL/BASH` while the ROM is visible. With the buffer in the bank that reads ROM bytes. The stub at `$9414` therefore reads the cell before it switches the ROM in; the ROM's own write is dropped, which is harmless. Any other ROM routine that reads the text screen through `BASL` also sees ROM bytes on a Saturn card.
+
+After boot, K-HANGEUL uses no main RAM in `$0800–$1FFF` on a Saturn card (checked by filling that range with a pattern after boot and running Hangul input, `RUN`, `CATALOG`, `BRUN TYPE`, `& TYPE`, `BRUN STYPE` and `& STYPE`: not one byte changed). Its only main RAM is the `$9400–$95FF` block.
+
+### K-BASIC on a Saturn card (not changed yet)
+
+K-BASIC is a separate project and has not been touched. On a Saturn card two things it relies on are different:
+
+- `BHEX`, `BPAR`, `BDEC` and `NUM`, which K-BASIC calls at install to print the memory report, are in the banner, which no longer stays in main RAM. K-BASIC has to carry its own copies (about 128 bytes, used only at install), which also work on a plain card, so one K-BASIC can serve both.
+- K-BASIC's check that `COUT` in the language card is a `JMP` reads `$C080` from main RAM. On a Saturn card that shows whichever bank is selected. It has to be replaced by a check that works on both cards, for example that the `COUT` entry at `$940A` is a `JSR` or `JMP`.
+
+K-BASIC's hooks (`KBBASE=$8A00`, signature "KB" at `+3`, entries at `+5` and `+8`) are unchanged.

@@ -15,6 +15,7 @@
 ## 2. What you need
 
 - Apple II Plus, 48K RAM, and a **language card (16K)**: the driver lives in the card. It also works on an Apple IIe, IIc and IIgs (the driver detects them at start-up; for the keyboard differences see the Shift notes in section 5).
+- A **Saturn 128K card** works too: the driver finds it at start-up and installs itself in the card's top bank, and the start-up text says so ("Saturn card, bank 7"). Behaviour is the same as with a 16K card. Load K-HANGEUL before any program that uses the other banks. Details: `MEMORY_LAYOUT_en.md`.
 - Optional: Korean BASIC keywords need a separate add-on program, KBASIC. The driver only has the hooks for it; KBASIC itself is not in this repository. The driver works the same without it.
 - DOS 3.3 (48K). Use this disk's DOS, or copy the files to your own disk (section 8).
 

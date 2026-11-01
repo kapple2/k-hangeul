@@ -1,6 +1,8 @@
 # build output
 DIST/
 build/
+build-sat/
+build-stock/
 __pycache__/
 
 # Python virtual environment
