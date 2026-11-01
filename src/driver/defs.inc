@@ -277,7 +277,7 @@ FMASK   = $1940
 .endif
 
 ; Saturn, stage 3: the variables of the bank that the loader (assembled for any card) also has to know
-SATVARB = $DC4A                 ; VARB of the Saturn arrangement
+SATVARB = $DF2A                 ; VARB of the Saturn arrangement: the loader (assembled for any card) writes the machine flag and the banner flag there
 SHMACHB = SATVARB + $3D         ; the machine flag in the bank
 SATBANOK = SATVARB + $3E        ; 1 while the start-up banner is still waiting to be shown
 SATHAN  = $9481                 ; the HAN command's entry in main RAM (Saturn)
@@ -290,3 +290,4 @@ BELLD = VARB + $30            ; INIT copies the stock bell image here; the real 
 .else
 BELLD = BELL                    ; stock: INIT copies the bell routine to $1CB0
 .endif
+SATREINIT = $D3FA                ; the frozen rebuild entry in the K-HANGEUL bank (page 2): jmp STATEINIT; $D3FD version $01, $D3FE magic $5A

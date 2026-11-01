@@ -32,6 +32,7 @@
 ; ===========================================================================
 
 .include "defs.inc"
+.include "version.inc"                ; VERSION_TXT, made from the VERSION file by tools/mkversion.py
 
 .import __LCIMG_LOAD__, __LCIMG_SIZE__
 .import __BANNER_LOAD__, __BANNER_RUN__, __BANNER_SIZE__
@@ -306,13 +307,21 @@ SatFinish:
         lda  #>__BANNER_LOAD__
         sta  $EE
         jsr  ApplyList              ; the banner source, in main RAM
+        lda  $EB                    ; $EB/$EC now point at the offset of the bank digit: the packing below uses them, so keep them
+        pha
+        lda  $EC
+        pha
         jsr  SatPackEn              ; the English font from ENGSRC into ENGFONT (page 2 is write enabled)
         lda  $C089                  ; page 1 of the bank, write enabled
         lda  $C089
         jsr  SatPackKo              ; the Korean font from $6000 into page 1, packed
         lda  LCROMWR                ; page 2 again, write enabled
         lda  LCROMWR
-        ldy  #$00                   ; then the offset of the bank digit in the banner text
+        pla                         ; then the offset of the bank digit in the banner text
+        sta  $EC
+        pla
+        sta  $EB
+        ldy  #$00
         lda  ($EB),y
         clc
         adc  #<__BANNER_LOAD__
@@ -975,6 +984,17 @@ SatBanner:                          ; the end of STOCKINIT: the start-up banner,
 SatPadEnd:
         .res FMASK-$D000-(*-FREE_D000)
         .incbin "build/FONT12.bin", 4416, 42      ; the shift masks, at the end of the font file
+; The loader writes the machine flag and the banner flag at SATVARB: it has to be the VARB of this arrangement
+.assert SATVARB = VARB, error, "SATVARB is not VARB of the Saturn arrangement"
+; The rebuild entry, frozen at $D3FA (docs/MEMORY_LAYOUT.md): a program that has overwritten the $9400-$95FF block (kScheme's
+; load) calls it, with this bank selected and the card RAM read and write enabled, to make the block again from the bank. It
+; is the HAN command without the DOS command: STATEINIT refills the state, SATCOPY and STOCKINIT copy the trampoline and the
+; stubs, the hooks and the hi-res screen are set up again. It returns through SatLeave1 (ROM visible, bank 0, SATSTATE $08).
+; $D3FD is the interface version, $D3FE the magic byte.
+SatReinitEntry:
+        jmp  STATEINIT
+        .byte $01,$5A
+.assert SatReinitEntry = SATREINIT, error, "the rebuild entry moved"
 .endif
         .res 1024-(*-FREE_D000)
 
@@ -5606,7 +5626,8 @@ BLINEX:
         rts                         ; 1D80  60
 BLINES:
 ; the first lines of the banner (before the free memory): johab pairs for Hangul, ASCII otherwise, $0D between lines
-        .byte $C4,$81,$CF,$69,$D0,$65,$8B,$69,$20,$76,$31,$2E,$30,$62,$20,$32
+        .assert .strlen(VERSION_TXT) = 4, error, "VERSION must be 4 characters"
+        .byte $C4,$81,$CF,$69,$D0,$65,$8B,$69,$20,"v",VERSION_TXT,$20,$32
         .byte $30,$32,$36,$91,$65,$20,$28,$D0,$65,$8B,$69,$32,$20,$AE,$81,$B8
 .if SATURN
 .export SatBannerDigit

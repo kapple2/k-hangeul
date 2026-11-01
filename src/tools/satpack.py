@@ -104,8 +104,8 @@ def main() -> None:
     lbl = (sat_dir / "driver.lbl").read_text()
     m = re.search(r"al ([0-9A-F]{6}) \.SatBannerDigit", lbl)
     if m:
-        digit = int(m.group(1), 16) - pm["BANNER"][0]
-    assert digit is not None, "SatBannerDigit is missing from the label file"
+        digit = int(m.group(1), 16) - sm["BANNER"][0]       # the label is in the Saturn build, whose banner runs at $6000
+    assert digit is not None and 0 <= digit < pm["BANNER"][2], "SatBannerDigit is missing from the label file or outside the banner"
     data = encode(r_img) + encode(r_ban) + bytes([digit & 0xFF, digit >> 8])
     room = pm["SATDATA"][2]
     if len(data) > room:

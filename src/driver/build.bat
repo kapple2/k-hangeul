@@ -17,6 +17,7 @@ if not exist build mkdir build
 if not exist build-stock mkdir build-stock
 if not exist build-sat mkdir build-sat
 py -3 fontgen.py ..\fonteditor\font.json build || goto fail
+py -3 ..\tools\mkversion.py ..\..\VERSION build\version.inc || goto fail
 "%CC65%\ca65.exe" -t none -I build -l build-stock\driver.lst -o build-stock\driver.o driver.s || goto fail
 "%CC65%\ld65.exe" -C driver.cfg -m build-stock\driver.map -Ln build-stock\driver.lbl -o build-stock\K-HANGEUL.bin build-stock\driver.o || goto fail
 "%CC65%\ca65.exe" -t none -D SATLOAD=1 -D SATURN=1 -I build -l build-sat\driver.lst -o build-sat\driver.o driver.s || goto fail

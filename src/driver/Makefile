@@ -15,12 +15,15 @@ DISK     ?= ../../disk/NEWHANGEUL.DSK
 
 CA65 = $(CC65)/ca65.exe
 LD65 = $(CC65)/ld65.exe
-SRC  = driver.s defs.inc build/jungclass.inc
+SRC  = driver.s defs.inc build/jungclass.inc build/version.inc
 
 all: build/K-HANGEUL.bin build/FONT12.bin build/FONT6X10.bin build-stock/K-HANGEUL.bin
 
 build/FONT12.bin build/FONT6X10.bin build/jungclass.inc: $(FONTJSON) fontgen.py
 	$(PYTHON) fontgen.py $(FONTJSON) build
+
+build/version.inc: ../../VERSION ../tools/mkversion.py
+	$(PYTHON) ../tools/mkversion.py ../../VERSION $@
 
 build-stock/K-HANGEUL.bin: $(SRC) driver.cfg
 	mkdir -p build-stock

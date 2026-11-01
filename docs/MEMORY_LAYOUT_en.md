@@ -158,3 +158,17 @@ K-BASIC is a separate project and has not been touched. On a Saturn card two thi
 - K-BASIC's check that `COUT` in the language card is a `JMP` reads `$C080` from main RAM. On a Saturn card that shows whichever bank is selected. It has to be replaced by a check that works on both cards, for example that the `COUT` entry at `$940A` is a `JSR` or `JMP`.
 
 K-BASIC's hooks (`KBBASE=$8A00`, signature "KB" at `+3`, entries at `+5` and `+8`) are unchanged.
+
+
+### Rebuilding the block after a program load (frozen interface)
+
+A program that is loaded over `$9400–$95FF` (kScheme's file has 512 zero bytes there) destroys the trampoline, the stubs and the driver state in main RAM, but not the driver in the bank. Its first action can rebuild all of it with the rebuild entry, which is the `HAN` command without DOS:
+
+- **Find the bank.** Look for the four bytes `KHG1` at `$FFF5–$FFF8` of a bank. `KHG1` only says that an image exists in that bank (card RAM keeps its contents over a warm reset). To be sure that K-HANGEUL was loaded in this session, also check that DOS's saved output hook `$AA53/$AA54` is `$0A/$94` (the `$940A` entry), and read the three frozen bytes below.
+- **Check the entry.** With the bank selected and RAM read on, `$D3FA` is `4C` (a `jmp`), `$D3FD` is the interface version `$01` and `$D3FE` is the magic byte `$5A`. Refuse to call it if they differ.
+- **Call it.** Select the bank (its switch byte is also at `$D3FF` of that bank), then set the card to `$D000` page 2, RAM read and write (`bit $C083` twice), then `jsr $D3FA`. Do nothing that prints between the end of the load and this call (BRUN prints nothing; `CSW` and `KSW` still point to `$940A` and `$9400`, which hold zeros in the filler).
+- **On return:** the block is rebuilt (state, trampoline, stubs, DOS hooks, `CSW`/`KSW`). The card is ROM read, write protected, `$D000` page 1, Saturn bank 0 (`SATSTATE` is `$08`, `SATDEPTH` is 1 and ends at 0 after the leave). A, X, Y and the flags are undefined. The stack is balanced; it needs at most about 20 bytes while it runs. There is no error return. The caller then writes `SATSTATE` = `$38` and `SATDEPTH` = 0 when it takes over the console, and sets the card to its own resting state.
+- **Side effects:** the text window and cursor (`$20–$25`), `$33`, `$36–$39` (`CSW`/`KSW`), `$E4` and `$E6` (= `$20`, hi-res page 1) are set again, the display switches go to full-screen hi-res page 1, the DOS hooks are reconnected, and the Hangul state (modes, cursor, flags) is reset. It does not clear the screen or the text buffer; they keep what they had.
+- **Tested** in MAME: after the whole block was overwritten with zeros, `BRUN` of a test program that calls the entry returned to BASIC, `PRINT` worked, and `CSW`/`KSW` pointed to the stubs again. Not tested with a real kScheme load.
+
+The addresses `$D3FA`, `$D3FD`, `$D3FE`, `$D3FF` and `$FFF5–$FFF8` do not move; the build has an assert for the entry.
