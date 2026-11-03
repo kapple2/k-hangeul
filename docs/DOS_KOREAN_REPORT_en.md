@@ -485,6 +485,12 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 - **`CATALOG` header:** done with data only, no extra code. DOS prints the 12 bytes at `$B3AF` backwards in a loop; the count (the operand at `$ADAF`) is cut to 9 and the bytes are replaced by `볼륨 ` (keystroke text), stored backwards. So the header reads `볼륨 254`. **"디스크 볼륨" is 17 bytes and does not fit, so "디스크" was dropped** (this replaces the 18-byte plan in the 4.2 table).
 - **Install:** the end of INIT (`DPX`) now goes to `KPATCH` in the card's free block. `KPATCH` patches DOS only when its bytes are exactly as expected, then returns with `jmp STATEINIT`. Installing again with the HAN command leaves what is already patched alone (the byte checks).
 - **File names that start with Hangul:** the `jmp $A000` at `$A04D` (DOS's first-character check) becomes `jmp KFN`. `KFN` is 10 bytes in main RAM (after `KSTUB`, ends at `$1FEF`, the banner limit is `$1FF0`): Ctrl-K continues to `$A050`, anything else goes to `$A000` as before. `KPATCH` installs it only if the bytes at `$A04D` are `4C 00 A0`. The card cost is about 24 bytes of code in `KPATCH`.
+- **Korean command names (all 25):** `$A000` (DOS's code for a line it does not know, both typed lines and `CHR$(4)` program lines) becomes `jmp KALS`. If the line (from `$0201` after a Ctrl-D, else from `$0200`) starts with a Hangul run, the first word is looked up by a 16-bit hash of its keystrokes (`h = rotate-left(h) xor key`, 28 slots in the order of DOS's command table, `$FFFF` for the AS IS `PR#`, `IN#`, `FP`; the 25 hashes were checked to differ). On a match the Korean word is replaced in place by the English word, read from DOS's own table at `$A884` (so the English words cost nothing), the rest of the line is moved up or down, and DOS parses the line again at `$9FCD`. Anything else goes the way the original `$A000` code went (typed line to Applesoft, program line to DOS's SYNTAX ERROR).
+  - **The run's closing Ctrl-A:** the line editor puts it after the space or at Return. The first `$81` after the word (before any new Ctrl-K) becomes a space, so `저장 T1` and `최대파일 2` work.
+  - **A Hangul file name in the same run:** if the word is followed by a space and a Hangul key (jamo letter or tense key), the replacement is `SAVE`, space, Ctrl-K, then the name, so the name keeps its Ctrl-K (`저장 한글` saves a file named `한글`).
+  - **Line length:** for a typed line DOS hands Applesoft the saved X (`$AA5A`) as the line length; after a rewrite it is set to the new Return position. Without this a bare `실행` gave `?UNDEF'D STATEMENT ERROR`.
+  - **Where the code is:** the 405 bytes of the command-name code are in the first 512 bytes of `ENGFONT` (`$D860`), the glyphs of control codes 0-31, which are all empty. `ENGCOPY` now copies only glyphs 32-127. This is the plain build only; on Saturn those bytes are the packed English font (the Saturn patch list restores them).
+  - **Main RAM stubs:** the stubs were reworked to share one exit (`KEXIT`: card off, `rts`). Each entry is `bit LCRAMRD` / `jmp` into the card; the card routine pushes the address to continue at. The four pieces take 22 bytes, 10 fewer than before (`KFN` was 10 bytes on its own).
 - **Saturn build:** the code above is only in the plain build. Saturn still prints the English messages and header (it needs a path through the bank trampoline, 8.2b).
 - **Size:** the contiguous free space on the card went from 685 to 251 bytes (from `$D305`). The messages, header and install code use about 434 bytes. `KSTUB` in main RAM is 22 bytes.
 - **Only `src/driver/driver.s` was changed, and the build was done with `build.bat` (without the disk step).** The disk images in `disk/` were not changed.
@@ -513,6 +519,22 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 | `NEW`, then `LOAD 한글` | loads with no error ✓ |
 | `LOCK 한글`, then `CATALOG` | `*A 002 한글` ✓ |
 | `RENAME 한글,글한` | `?SYNTAX ERROR` (the known comma problem, 5.4; not a new fault) |
+| `저장 T1` (typed, `SAVE`) | saved, `T1` in the list ✓ |
+| `목록` (`CATALOG`), also `목록,D1` | Korean header and the list ✓ |
+| `저장 한글`, `10 PRINT 9`, `불러오기 한글`, `LIST` | `10 PRINT 1` (the Hangul-named file was saved and loaded) ✓ |
+| `실행` with no name (`RUN`) | runs the program, prints `1` ✓ |
+| `실행 DEMO` | the demo runs ✓ |
+| program `20 PRINT CHR$(4);"저장 T8"`, then `실행` | prints `1` and saves `T8` ✓ |
+| `잠금 T8`, then `지우기 T8` (`LOCK`, `DELETE`) | `파일 잠김` ✓ |
+| `자리 T8` (`POSITION`, the English word is longer than the Korean one) | `직접 명령 아님` (DOS's correct answer) ✓ |
+| `이진저장 B1,A$300,L4`, `이진불러오기 B1`, `검사 B1`, `이름바꿈 B1,B2` | no error ✓ |
+| `최대파일 2` (digit inside the run) and `최대파일 ` Ctrl-A `3` | no error ✓ |
+| `감시`, `감시끝` (`MON`, `NOMON`) | no error ✓ |
+| `한글` (`HAN`), then `LOAD NOSUCH` | the banner again, then `파일 없음` ✓ |
+| `안녕 GO` (not a command name) | `?SYNTAX ERROR` as before ✓ |
+| K-BASIC loaded (copy of `KBASIC.DSK`): `저장 T1`, `불러오기 T1`, `실행` | no error ✓ |
+| the previous commit's build against this one: `RUN DEMO`, control codes `CHR$(1)` etc., a Hangul line | the screens are the same except the last line: `한글 ...` is now the `HAN` command, so DOS answers `문법 오류` instead of Applesoft's `?SYNTAX ERROR` ✓ |
+| Saturn card: boot, `LOAD NOSUCH`, `RUN DEMO` | works, English message (as designed) ✓ |
 | `PR#0`, then `LOAD NOSUCH` | English `FILE NOT FOUND` ✓ (the English fallback) |
 | the driver on a blank DOS 3.3 disk (`dos33blank.dsk`), `LOAD NOSUCH` and `CATALOG` | `파일 없음`, header `볼륨 254` ✓ |
 | the new driver on a copy of the K-BASIC disk (`KBASIC.DSK`; K-BASIC itself only read), `EXEC KSTART`, then `LOAD NOSUCH` | `파일 없음` after `KBASIC V1.0 OK` ✓. K-BASIC's `LIST` still shows `출력` ✓ |
@@ -540,5 +562,7 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 
 **Not built yet**
 
-9. Korean messages, header and Hangul-first file names on the Saturn card, and Korean command names.
+9. Korean messages, header, Hangul-first file names and Korean command names on the Saturn card.
+   - **Limits of the command names:** (a) a Hangul word that is not a name but has the same 16-bit hash as one would be taken as that command (about 25 in 65,536). (b) After a name, a Hangul file name typed in the same run must start with a jamo or tense key; a name that starts with a digit or a sign is taken as English arguments. (c) The comma problem (5.4) still applies to a Hangul file name followed by a comma. (d) The test harness drops keys while typing Hangul fast (after `NEW` especially); those runs were repeated with slower typing, and are not driver faults.
+   - **Space left:** the card's free block has 166 bytes (from `$D35A`); the command-name area has 107 of 512 bytes (91 below glyph 31); main RAM `$1CC0-$1FEF` has 11 bytes.
 10. Rebuilding the distribution disk `disk/K-HANGEUL.DSK`, and a review of the message wording (the translations are the 4.2 draft as it was).
