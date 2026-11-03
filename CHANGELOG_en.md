@@ -5,6 +5,12 @@
 The version number is written in one place only, the `VERSION` file at the top of the repository. The build takes the `v1.1b` text of the start-up banner from it.
 To raise the version, write a new entry at the top of this file and change the version text in the user manual (`docs/MANUAL.md`, `docs/MANUAL_en.md`) too.
 
+## Not released yet (branch `dos-korean`; the version stays 1.1b until it is raised)
+
+- Korean DOS on a 16K language card: Korean error messages and `CATALOG` header, file names that start with Hangul, Korean names for 25 DOS commands (`PR#`, `IN#`, `FP` stay English). See `docs/MANUAL_en.md` section 8.
+- `INIT` formats a disk again while the driver is loaded (since Hangeul2 it restarted the driver instead), and the new disk gets stock DOS 3.3. On a Saturn card `INIT` still restarts the driver, and the Korean DOS parts are not there yet.
+- The empty glyphs of control codes 0-31 in the English font area are used for code (16K card build).
+
 ## 1.1b
 
 - Saturn 128K card support. One `K-HANGEUL.bin` works on a plain 16 KB language card and on a Saturn card.

@@ -13,8 +13,8 @@ The loader copies these bytes into DOS before it enters `INIT`. They are the sam
 | address | new bytes | meaning |
 |---|---|---|
 | `$A8F1-$A8F3` | `48 41 CE` ("HAN", last letter with the high bit) | A name in DOS's command table, between `FP` (`$A8EF`) and `BSAVE`. It replaces the Integer BASIC command, so the command `HAN` exists. |
-| `$A59E-$A59F` (and `$A5A0` = `$20`, unchanged) | `D0 BB` | The handler of that command branches (`BNE`) to `$A55B`. |
-| `$A55B-$A560` | `4C lo hi EA EA EA` | `JMP HANMAIN` (a routine in the banner segment, main RAM) and three NOPs. (Stock had `STA $C080 / JMP INIT` here. The loader now leaves the card writable and jumps to `INIT`; `INIT` copies the English font into the card and then write protects it with `LDA $C080`.) |
+| `$A59E-$A5A0` | `4C lo hi` | The handler of that command: `JMP HANMAIN` (a routine in the banner segment, main RAM). |
+| `$A55B-$A560` | not changed on a 16K card | Stock Hangeul2 (and this driver before the `dos-korean` work) wrote `JMP HANMAIN` here, inside DOS's `INIT` code, and branched to it from `$A59E`; so `INIT` never formatted a disk while the driver was loaded, it restarted the driver. On a 16K card `INIT` works now (section 5). On a Saturn card the loader still writes `JMP SATHAN` here, so there `INIT` still restarts the driver. |
 
 `HAN` starts the Hangul driver again: it switches the language card on, fills the driver's state with spaces, and runs the stock init (hooks, 46 x 16 window, hi-res screen, banner). Checked in MAME: after `PR#0` and `IN#0` (driver off, ROM text output) typing `HAN` brings the driver back, with the driver's own routines in `$36-$39` and in DOS's saved copy `$AA53-$AA56` exactly as after a normal boot. Ctrl-Reset also turns the driver off (the ROM hooks and its 40 x 24 text window come back) and `HAN` brings it back, with the hooks, window and screen as after a boot; checked in MAME with its real Ctrl-Reset key (the `Ctrl` and `Reset` fields of `:kbd:nkbd:keyb_special`). `m:soft_reset()` in MAME is a machine reset, not Ctrl-Reset, and gave misleading results. Not tried on a real machine. It redraws the banner and clears the screen but keeps the BASIC program. It was broken before (the old `INIT` copied the banner and font from memory BASIC had reused); `HAN` now skips those copies. The overwritten DOS bytes are not recorded in this project.
 
@@ -45,3 +45,19 @@ The loader copies these bytes into DOS before it enters `INIT`. They are the sam
 - It reads files with the RWTS entry `$03D9` and the parameter list from `$03E3`, so it uses the slot and drive of the last disk access. It never opens a DOS file.
 - `TYPEC` runs inside DOS's output hook (BRUN is executed from there). Calling that hook a second time overwrites the stack pointer it saved in `$AA59`, and DOS then hangs at `$9FB6-$9FC4`. So TYPEC copies the real hooks from `$AA53-$AA56` to `$36-$39` first and leaves with `JMP $03D0` (DOS warm start, which reconnects the hook and prints the prompt).
 - Other DOS facts used: `Ctrl-D` in a DOS command must be `$84`, a text file ends with error 5, `OPEN` creates a missing file, `OPEN` and `READ` are refused at the prompt (`ERROR #15`). `TYPE` avoids all of these by reading sectors.
+
+## 5. Korean DOS (16K card; made by `INIT`'s last step, `KPATCH`)
+
+Each patch is made only if the DOS bytes are the stock ones shown (otherwise that one is left alone). Not on a Saturn card yet. User-level description: `MANUAL_en.md` section 8; design and tests: `DOS_KOREAN_REPORT_en.md` section 9.
+
+| address | stock | now | meaning |
+|---|---|---|---|
+| `$A702-$A704` | `LDA $AA3F,X` (`BD 3F AA`) | `JMP $BCEF` (`KSTUBD`) | DOS's message routine (X = message number). `KSTUBD` goes to the driver only while DOS's output is the driver's (`$37 = $94`); the driver prints the Korean text. Otherwise it does what stock DOS did (English). |
+| `$A04E-$A04F` | `JMP $A000` (`4C 00 A0`, at `$A04D`) | `JMP KFN` | The first-character check of a file name: Ctrl-K (a Hangul name) is let through to `$A050`. |
+| `$A000-$A002` | `LDA $0200` (`AD 00 02`) | `JMP KALS` | DOS's code for a line it does not know: the Korean command names (the first word is replaced by DOS's English word and the line is parsed again from `$9FCD`). |
+| `$ADAF` | `$0B` | `$08` | The `CATALOG` header prints 9 bytes, not 12. |
+| `$B3B0-$B3B7` | `DISK VOLUME` text (stored backwards) | `볼륨` as Hangul keys | The `CATALOG` header text (`$B3AF` stays a space). |
+| `$9D1E-$9D1F` | `$A54E` | `$BCDE` | DOS's handler table entry for `INIT`: the INIT guard (`KINITS`). |
+| `$BCDF-$BCFD` | zeros (unused by DOS 3.3) | 31 bytes | `KINITS`, `KPOST` and `KSTUBD`. Installed only if all of `$BCDF-$BCFF` is zero; otherwise `INIT` restarts the driver as before. |
+
+**The INIT guard.** While `INIT` runs, the bytes in the table above (except `$A702` and `$BCDF`) and the loader's and `CATALOG` patches (`$A59E`, `$A8F1`, `$ADA3`, `$AE3A-$AE3D`) are exchanged with the stock bytes kept in the card, so the new disk gets stock DOS 3.3, plus `$A702` and `$BCDF`, which without the driver just print DOS's English message. `INIT`'s handler returns through `KPOST`, which exchanges them back; if `INIT` fails, the driver's message code exchanges them back before it prints. Checked in MAME: a new disk boots without the driver, and its DOS differs from stock only at `$A702-$A704` and `$BCDF-$BCFD`.
