@@ -619,6 +619,8 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 | `INIT HELLO` | runs `HAN`, the disk is unchanged (as designed) ✓ |
 | 16K card after the change: messages, `저장 한글` / `불러오기 한글` / `실행`, `INIT HELLO` with the guard | as before ✓ |
 
-**Not tested yet.** With kScheme loaded (asked the kScheme session to run its start-up, file I/O and `(exit)` with this build); `PR#0` on a Saturn card (the text page after `PR#0` was hard to read in the test); a 64K Saturn card (by design DOS stays English there).
+**With kScheme (tested by the kScheme session, its own MAME setup, `-sl0 ssram`, this build).** kScheme starts normally (banner, `khg_attach` / `$D3FA`); Hangul output (`한글`) and numbers print; file I/O works (a text file written on drive 2 reads back correctly). After `(exit)`, at the `]` prompt, `LOAD NOSUCH` prints `파일 없음` and `CATALOG` shows `볼륨 254` and the list. Bank 6 `$D000-$D3FF` page 1 (the Korean DOS code) was dumped after boot and again after `(exit)`: all 1024 bytes identical. (Bank 6 page 2 changed, as expected: kScheme's file cache.) A `?UNBOUND ERROR` when reading the file back is a kScheme bug; it happens the same with the old driver and without K-HANGEUL.
+
+**Not tested yet.** `PR#0` on a Saturn card (the text page after `PR#0` was hard to read in the test); a 64K Saturn card (by design DOS stays English there).
 
 **Space left on Saturn:** bank 7 free block 1 byte; DOS `$BCFB-$BCFF` 5 bytes; `$95AC-$95AD` 2 bytes; bank 6 page 1 about 3.3 KB.
