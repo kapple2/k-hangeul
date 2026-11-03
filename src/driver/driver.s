@@ -1027,22 +1027,34 @@ KMSGC:
 KPATCH:
         lda  $A702
         cmp  #$BD
-        bne  @h
+        bne  @f
         lda  $A703
         cmp  #$3F
-        bne  @h
+        bne  @f
         lda  $A704
         cmp  #$AA
-        bne  @h
+        bne  @f
         lda  $A705
         cmp  #$AA                   ; tax
-        bne  @h
+        bne  @f
         lda  #$4C
         sta  $A702
         lda  #<KSTUB
         sta  $A703
         lda  #>KSTUB
         sta  $A704
+@f:     lda  $A04D                  ; file names: DOS's first-character check  asl a / bcc $A050 / bmi $A050 / jmp $A000
+        cmp  #$4C                   ; (the jmp at $A04D, 4C 00 A0) now goes to KFN, which also lets Ctrl-K through
+        bne  @h
+        lda  $A04E
+        bne  @h
+        lda  $A04F
+        cmp  #$A0
+        bne  @h
+        lda  #<KFN
+        sta  $A04E
+        lda  #>KFN
+        sta  $A04F
 @h:     lda  $ADAF                  ; the CATALOG header: DOS prints the 12 bytes at $B3AF backwards ("DISK VOLUME "):
         cmp  #$0B                   ; ldx #$0B / lda $B3AF,x / jsr $FDED / dex / bpl  (operand at $ADAF)
         bne  @x
@@ -6026,6 +6038,21 @@ KSTUB:
 @e:     lda  $AA3F,x                ; what the DOS routine did first
         jmp  $A705                  ; ... and the rest of it (tax, the loop)
 .assert * - KSTUB = KSTUBSZ, error, "KSTUBSZ is wrong"
+.endif
+
+; DOS's file name check (see KPATCH): A = the first character shifted left once. Ctrl-K ($8B) gives $16 and carry set; let it
+; through to the code that stores the name ($A050 rotates the carry back in), anything else is DOS's syntax error as before.
+KFNSZ = 10
+.if SATURN
+KFN:
+        .res KFNSZ                  ; not built for the Saturn arrangement
+.else
+KFN:
+        cmp  #$16
+        bne  @n
+        jmp  $A050
+@n:     jmp  $A000
+.assert * - KFN = KFNSZ, error, "KFNSZ is wrong"
 .endif
 
 ; room for the patch lists (tools/satpack.py writes them here); empty when SATLOAD = 0

@@ -484,6 +484,7 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 - **Korean error messages:** the first 3 bytes of DOS's message printing routine at `$A702` become `jmp KSTUB`. `KSTUB` lives in main RAM (end of the banner area, `$1FCF`, 22 bytes). If DOS's output is the driver's, it runs `KMSGC` on the card, which prints the Korean text through `COUT`; otherwise DOS prints its English text unchanged. All 15 message numbers have text (`KOFF`, `KSTR1`, `KSTR2`).
 - **`CATALOG` header:** done with data only, no extra code. DOS prints the 12 bytes at `$B3AF` backwards in a loop; the count (the operand at `$ADAF`) is cut to 9 and the bytes are replaced by `볼륨 ` (keystroke text), stored backwards. So the header reads `볼륨 254`. **"디스크 볼륨" is 17 bytes and does not fit, so "디스크" was dropped** (this replaces the 18-byte plan in the 4.2 table).
 - **Install:** the end of INIT (`DPX`) now goes to `KPATCH` in the card's free block. `KPATCH` patches DOS only when its bytes are exactly as expected, then returns with `jmp STATEINIT`. Installing again with the HAN command leaves what is already patched alone (the byte checks).
+- **File names that start with Hangul:** the `jmp $A000` at `$A04D` (DOS's first-character check) becomes `jmp KFN`. `KFN` is 10 bytes in main RAM (after `KSTUB`, ends at `$1FEF`, the banner limit is `$1FF0`): Ctrl-K continues to `$A050`, anything else goes to `$A000` as before. `KPATCH` installs it only if the bytes at `$A04D` are `4C 00 A0`. The card cost is about 24 bytes of code in `KPATCH`.
 - **Saturn build:** the code above is only in the plain build. Saturn still prints the English messages and header (it needs a path through the bank trampoline, 8.2b).
 - **Size:** the contiguous free space on the card went from 685 to 251 bytes (from `$D305`). The messages, header and install code use about 434 bytes. `KSTUB` in main RAM is 22 bytes.
 - **Only `src/driver/driver.s` was changed, and the build was done with `build.bat` (without the disk step).** The disk images in `disk/` were not changed.
@@ -508,6 +509,10 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 | `CATALOG` | header `볼륨 254` and the file list ✓ |
 | `CATALOG` with two or more pages, advancing by key | the second page looks normal ✓ |
 | `HAN` typed twice, then `LOAD NOSUCH` | still `파일 없음` ✓ |
+| `SAVE `Ctrl-K`GKSRMF`Ctrl-A (name `한글`), then `CATALOG` | the entry `한글` in the list ✓ |
+| `NEW`, then `LOAD 한글` | loads with no error ✓ |
+| `LOCK 한글`, then `CATALOG` | `*A 002 한글` ✓ |
+| `RENAME 한글,글한` | `?SYNTAX ERROR` (the known comma problem, 5.4; not a new fault) |
 | `PR#0`, then `LOAD NOSUCH` | English `FILE NOT FOUND` ✓ (the English fallback) |
 | the driver on a blank DOS 3.3 disk (`dos33blank.dsk`), `LOAD NOSUCH` and `CATALOG` | `파일 없음`, header `볼륨 254` ✓ |
 | the new driver on a copy of the K-BASIC disk (`KBASIC.DSK`; K-BASIC itself only read), `EXEC KSTART`, then `LOAD NOSUCH` | `파일 없음` after `KBASIC V1.0 OK` ✓. K-BASIC's `LIST` still shows `출력` ✓ |
@@ -535,5 +540,5 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 
 **Not built yet**
 
-9. Korean messages and header on the Saturn card, Hangul-first file names, and Korean command names.
+9. Korean messages, header and Hangul-first file names on the Saturn card, and Korean command names.
 10. Rebuilding the distribution disk `disk/K-HANGEUL.DSK`, and a review of the message wording (the translations are the 4.2 draft as it was).
