@@ -263,7 +263,7 @@ Notes on the names: `읽기` is used for READ so LOAD gets `불러오기`. Names
 
 - **The parser compares letters.** DOS looks the word up in the table at `$A884`. A Korean word typed in Hangul mode arrives as `$8B`, jamo keys, `$81`, so the table never matches (`?SYNTAX ERROR`). The user also has to turn Hangul mode on before the command word and off again for the file name (Ctrl-K ... Ctrl-A), about the same number of key presses as the English word.
 - **Method: alias before DOS sees the line.** When the line is finished (Return), the driver looks at its first word; if it is a known Korean alias, it replaces it with the English command in the line buffer. DOS and Applesoft work unchanged. This needs a table of 10-14 aliases (6-12 bytes each) and a compare routine. (A second name table inside DOS's parser would be bigger and riskier. Not recommended.)
-- **Open question, not yet checked in MAME:** where exactly DOS reads the typed command in immediate mode, and whether the driver's line input is the right place for the replacement. This decides whether the alias method is simple, so it must be checked first (about half a day).
+- **Checked in MAME:** DOS reads both typed lines and program lines from the `$0200` buffer (a program line starts with Ctrl-D), and an unknown word goes to `$A000`. So replacing at `$A000` is simpler than in the line input. Test results are in 6.4.
 - **The comma problem (5.4)** applies: the alias routine has to cope with `$81` arriving after a comma or space, or the line editor has to be changed.
 - **Inside programs** (`PRINT CHR$(4);"CATALOG"`) the strings are English, written by the program author. Replacing in the output path would cover them too, but that is a separate, larger decision.
 
@@ -293,11 +293,95 @@ K-BASIC already rewrites the typed line before DOS sees it, so the same mechanis
 
 **Decision (2026-11-02, user): the driver does both the Korean commands and the messages. K-BASIC does not.** The K-BASIC session was told to stop its analysis. Reasons: it works without K-BASIC, and everything about DOS stays in one project. The price is free card space (size table in section 8). The comparison table above stays for reference.
 
-## 7. What not to do
+### 6.4 Korean DOS commands inside BASIC programs (requirements, analysis, test results)
 
-- A second command-name table inside DOS's parser (section 6.1).
+**Goal:** a program line such as `PRINT CHR$(4);"저장 NAME"` with a Korean command inside the quotes is understood by DOS, with or without K-BASIC loaded.
+
+**What the `$A000` hook is, and what it is for.** DOS collects one line (typed, or text a program prints after `CHR$(4)`) in the `$0200` buffer, then compares its first word with the 28 command names in the table at `$A884`. If none matches, it goes to `$A000`. There DOS (1) hands a typed line to Applesoft, or (2) for a program line (one that starts with Ctrl-D) gives `SYNTAX ERROR`. So `$A000` is **the exit where "a word DOS does not know" arrives.** Our code placed there checks whether the word is a Korean alias. If it is, it replaces the Korean word in the buffer with the English command and puts the line back into DOS's parser (`$9FCD`). DOS processes it as if it were typed in English.
+
+Why this is good: (a) it runs only when DOS would have failed anyway, so English commands see no change and no slowdown; (b) typed lines and program lines both pass through the same `$0200` buffer, so one hook covers both; (c) neither the line editor nor K-BASIC has to change.
+
+**Why the line-input method (6.1) does not work for programs.** Replacing aliases in the line input applies only to lines the user types. Text a program sends with `PRINT` does not pass through the line input; it goes into DOS's output intercept. K-BASIC cannot do it either, for the same reason (see "Could K-BASIC be changed to do it?" below).
+
+**What "K-BASIC leaves quoted text alone" means:** K-BASIC turns Korean BASIC words (such as `출력`) into the real words (`PRINT`) in a typed line. Text between double quotes is data, not a command, so it is left as typed. In `PRINT CHR$(4);"저장 NAME"`, `PRINT` and `CHR$(4)` are code and would be converted, but `저장 NAME` is inside the quotes and goes to DOS unchanged. So K-BASIC cannot damage a Korean command word in a program, but it also does not turn `저장` into `SAVE`.
+
+#### Test results (MAME, a sample routine loaded into RAM; nothing in the repository was changed)
+
+I patched a `JMP` into `$A000` and loaded a test hook of about 210 bytes into RAM (with only two aliases, `목록` = CATALOG and `저장` = SAVE). The test ran on the K-HANGEUL v1.1b disk (Apple II+, plain 16 KB card, no K-BASIC).
+
+| # | Input | Result |
+|---|---|---|
+| 0 | typing `목록` without the hook | `?SYNTAX ERROR` (baseline) |
+| 1 | typed `목록` | the catalog is listed ✓ |
+| 2 | typed `저장 T1` | file `T1` appears on the disk ✓ (checked with the disk listing) |
+| 3 | typed `저장 T2,D1` (comma in English arguments) | `T2` appears ✓ |
+| 4 | `목록` with Return pressed but no Ctrl-A to end Hangul mode | the catalog is listed ✓ (the line editor closes it at Return) |
+| 5 | program `10 PRINT CHR$(4);"목록"`, then `RUN` | the catalog is listed ✓ |
+| 6 | program `PRINT CHR$(4);"저장 T1"`, then `RUN` | file `T1` appears ✓ |
+| 7 | program `PRINT CHR$(4);"CATALOG"` (English, hook present) | the catalog is listed ✓ (English unchanged) |
+| 8 | program with no Ctrl-A before the closing quote, `"목록"` | ✗ `?SYNTAX ERROR` and garbage characters (see 3 below) |
+
+What the tests showed (to be respected by the real code):
+
+1. **A program line starts with Ctrl-D (`$84`) and the command text begins at `$0201`** (a typed line begins at `$0200`). The hook must decide the start by checking whether `$0200` is Ctrl-D. DOS's `$AA5D` is not the start; it is the read position and cannot be used (my first attempt was wrong).
+2. **The line editor puts the closing Ctrl-A (`$81`) after the space.** `저장 T1` arrives as `...word keys A0 81 T1`, so the `$81` stays in front of the file name and DOS rejects the name (same cause as the comma problem in 5.4). The hook must delete the first `$81` after the alias (before any Hangul run starts). With that added, tests 2 and 3 passed.
+3. **When writing it in a program, end Hangul mode with Ctrl-A before the closing quote.** Otherwise a `$81` stays after the closing quote and Applesoft gives `?SYNTAX ERROR`. That is a matter for the line editor (and Applesoft), not for the hook, and has the same root cause as 5.4. Fixing the line editor (the optional item in 5.4) removes it too.
+4. **Where the test code sat:** I first put the test code at `$0360`; at 176 bytes it overwrote `$03D0-$03FF` (DOS's reconnect entry and vectors) and every program broke, even English commands. The real code must not touch that area; it goes on the card.
+5. English program commands (`"CATALOG"`) and English typed lines still work with the hook present (test 7).
+
+Not tested: with K-BASIC loaded (K-BASIC is not in this repository; what its session checked in its source is in 8.2a), the Saturn card, the Apple IIe, other DOS commands (`OPEN`, `READ`, `WRITE`, `APPEND`, `EXEC`, `BLOAD` and so on), and a Hangul file name after an alias. They all go through the same parser, so I expect the first-word replacement to work for them, but that is not confirmed.
+
+#### Size (measured on the test code)
+
+The test code was about 176 bytes (generic, not tuned) plus 17 bytes per alias (fixed size). Tuned, I expect 110-130 bytes of code and about 12 bytes per alias with variable-length entries (an estimate). For 9 aliases that is about 220-240 bytes, the upper end of the 160-240 in 6.2. Together with the messages (380-410) that is 600-650 bytes, which just fits the free space of the plain card (about 670-685 bytes). **The `$D000` image of the Saturn build has only 186 contiguous free bytes (7.4).** That is a real problem.
+
+#### Could K-BASIC be changed to do it?
+
+Yes, but only in a limited form. When K-BASIC meets a quote in a typed line it copies the contents unchanged (the `@out` / `QUOTE` handling in `kbasic.s`). A rule could be added: "if the quote follows `CHR$(4);` and the first word inside is a Korean alias, store the English word instead". The program would then hold English `SAVE`, so it would also run on machines without the driver (an advantage). The limits:
+
+- It applies **only to typed lines.** It misses programs loaded from disk, text built at run time such as `D$ = "저장 " + N$`, and the common way of keeping `CHR$(4)` in `D$` and writing `PRINT D$;"..."` (the "right after `CHR$(4)`" condition fails).
+- **`LIST` shows English**, because the stored text is English.
+- It is a **change to the K-BASIC project**, and its module has only about 1 spare byte below `$9400`, so `HIMEM` would have to go down.
+- It works only for people who use K-BASIC.
+
+The `$A000` hook, in contrast, sees the text DOS receives at run time, so it has none of these limits. So for Korean commands inside programs the driver's `$A000` hook is the right place, and K-BASIC could at most serve as a typing-time translation helper.
+
+**Is one hook enough?** As tests 1-4 show, the `$A000` hook also catches typed lines, so a separate line-input hook looks unnecessary (saves card space). K-BASIC scans a typed line first, but after the renames in section 6 no alias word contains a K-BASIC word. This combination (hook + K-BASIC) has not been tested. **Your decision is item 5 in 8.3.**
+
+## 7. What is not possible, limits, and what not to do
+
+### 7.1 Not possible, whatever we do
+
+- **Korean commands or Korean messages on a machine without the driver.** DOS knows only English. A program with Korean commands stops with `?SYNTAX ERROR` without the driver. Korean messages come out in English without the driver (accepted).
+- **Korean commands inside programs with K-BASIC alone.** K-BASIC leaves quoted text alone and only rewrites typed lines. It cannot reach text built while the program runs or a program loaded from disk (6.4).
+- **Korean names for `PR#`, `IN#` and `FP`.** They stay English (`#` is awkward to type after a Hangul word, and `FP` is a silent command).
+- **Code beyond the card's free space.** Messages plus all 28 aliases plus Hangul-first names may not fit in the ~670 free bytes (8.2). The `./name` command was dropped by the user's decision.
+
+### 7.2 Limits, or needs a workaround
+
+- **A comma after a Hangul file name.** `BSAVE B한,A768,L4` gives `?SYNTAX ERROR`. Put the Hangul name last on the line, or save with an English name and then use `RENAME` (5.4). Fixing the line editor solves it (a driver change, needs the user's permission).
+- **Hangul name length.** DOS allows 30 bytes, so 7-9 syllables (5.5).
+- **File names that contain a K-BASIC word.** K-BASIC rewrites the keys of a word in a typed line, so `LOAD 읽기파일` becomes `LOAD READ...` (8.2a). Avoid such names.
+- **Ctrl-A when writing in a program.** Hangul mode must be ended before the closing quote (test 8 in 6.4).
+- **Hangul names saved without Ctrl-A.** Noise shows on plain DOS (5.5).
+
+### 7.3 What not to do
+
+- A second command-name table inside DOS's parser (6.1).
 - `MON` / `NOMON`, `FP`, `INIT` and other silent commands: nothing to translate.
 - Changing the type letters (`T I A B S R`) of `CATALOG` to Korean letters: possible with the same loop patch, but they are single letters people know; little gain.
+- Letting test code straddle `$03D0-$03FF` (DOS vectors) (6.4, item 4).
+
+### 7.4 The "not yet checked" items, now checked
+
+| item | result |
+|---|---|
+| the `$A000` hook | works for typed lines and program lines in the test (table in 6.4) |
+| whether `SATREINIT` removes K-BASIC's CHRGET patch | the driver source has no code that writes `$C5-$C7` or `$0350`. The driver only calls CHRGET (`$B1`, `$B7`). So by the source, the rebuild entry has no reason to remove K-BASIC's patch. (Checked in the source; I did not run it with K-BASIC loaded.) |
+| free space on the Saturn card | the `$D000` image of the Saturn build has only 186 contiguous free bytes, starting at `$D316` (the plain build has 685 bytes from `$D153`). Using other banks was not examined. |
+| Apple IIe | not tested. DOS 3.3's parser is the same, so I expect the DOS-side hook to be the same, but whether the driver runs on a IIe is a separate matter outside this report. |
+| text-file commands (`OPEN`, `READ`, `WRITE`, `APPEND`, `EXEC`) and `BLOAD` | not tested. They go through the same parser and the same hook, so I expect the first-word replacement to work. In a program the text goes to DOS one line at a time (`D$;"OPEN NAME"`), so the Ctrl-A rule in 6.4 applies as is. |
+| the hook with K-BASIC loaded | not tested (K-BASIC is not in this repository). What the K-BASIC session checked in its source is in 8.2a. |
 
 
 ## 8. Decisions made and decisions for you
@@ -309,28 +393,40 @@ K-BASIC already rewrites the typed line before DOS sees it, so the same mechanis
 | 1 | The error messages and the `CATALOG` header are done by the **driver** | DOS prints them from `$A702` through normal output (COUT). K-BASIC's output hook is for LIST only; the output hook that draws Hangul and the "English if output was switched away" fallback are in the driver. |
 | 2 | The Korean command names (aliases) are also done by the **driver**, not K-BASIC (user decision, 2026-11-02) | Works without K-BASIC, and everything about DOS stays in one place. The K-BASIC session was told to stop. |
 | 3 | 7 names were changed so none clashes with a K-BASIC word | `초기화`→`포맷`, `삭제` dropped, `위치`→`자리`, `이어실행`→`연결`, `일괄실행`→`일괄`, `이진실행`→`이진가동`, `이진읽기`→`이진불러오기` (see the check in section 6). The exceptions are `실행` (RUN) and `읽기` (READ), the same command in both. |
-| 4 | An alias looks only at the first word of the line, and the driver replaces it with the English command before K-BASIC sees it | K-BASIC's scan then never sees that word. Where one name is the start of another (`감시` / `감시끝`), the longer is matched first. |
-| 5 | Hangul in file names that start with an English letter works today, so document it | MAME tests in section 5. |
+| 4 | An alias looks only at the **first word** of the line. Where one name is the start of another (`감시` / `감시끝`), the longer is matched first | The method confirmed by the tests in 6.4. |
+| 5 | The `./name` run command is not done (user decision, 2026-11-02) | Not enough card space. |
+| 6 | Hangul in file names that start with an English letter works today, so document it | MAME tests in section 5. |
+
+Where the hook goes (the line input, or DOS's `$A000`) is **not decided yet** (item 5 in 8.3). The test results show that the `$A000` hook handles both typed lines and program lines (6.4).
 
 ### 8.2 Size: does it all fit?
 
-| item | bytes | of 669 free |
+| item | bytes | note |
 |---|---|---|
-| messages + header | 380-410 | |
-| Korean command aliases (all) | 160-240 | |
-| **both together** | **540-650** | leaves 19-129 |
+| messages + header | 380-410 | the plain card has 685 contiguous free bytes from `$D153` (669 measured earlier as usable) |
+| 9 aliases (estimate from the test code) | about 220-240 | 110-130 of code + about 12 per alias |
+| **both together** | **600-650** | just fits on the plain card, leaving 20-85 |
+| all 28 aliases | about 400 or more | does not fit together with the messages |
 | Hangul-first file names | 20-30 | nearly full if added |
-| `./name` run command | 110-180 | does not fit |
 
-The 160-240 for aliases is an estimate, and the free space in the Saturn bank has not been re-measured. Ways to shrink: keep aliases to the 9 marked "yes" (INIT, LOAD, SAVE, RUN, DELETE, LOCK, UNLOCK, RENAME, CATALOG), which should be about 60-90 bytes (an estimate); shorten the message wording further; or use the free block at `$0800-$1FFF` on the plain card (93 bytes) and the Saturn `$9400` fragments. Each new DOS hook also costs a few bytes in the rebuild entry (`SATREINIT=$D3FA`).
+**Saturn build:** the `$D000` image has only 186 contiguous free bytes starting at `$D316` (plus a few small pieces). The total above does not fit in this image. The Saturn card has 128 KB, so the code could probably live in another bank, but I did not check (it needs calls across banks). Other ways to shrink: shorten the message wording further; use the free block at `$0800-$1FFF` on the plain card (93 bytes) and the Saturn `$9400` fragments. Each new DOS hook also costs a few bytes in the rebuild entry (`SATREINIT=$D3FA`).
+
+### 8.2a Effect on K-BASIC (checked by the K-BASIC session in its own source)
+
+- **Order.** `KB_IN` scans the line in the line input (`CLOSERUN`), then DOS reads it (not tested with a DOS command line). So a line that reaches the `$A000` hook has already been scanned by K-BASIC. The names were changed so that no alias word contains a K-BASIC word (decision 3). The other way is to replace the alias in the line input before the `KB_IN` call (the K-BASIC session's suggestion).
+- **File names are affected.** DOS arguments are not quoted, so `KB_IN` rewrites the keys of a K-BASIC word inside a file name. Example: `LOAD 읽기파일` becomes `LOAD READ...`. This applies to Hangul file names (section 5), so choose names that avoid K-BASIC words (`읽기`, `실행`, `출력` and so on). This is a problem today whenever K-BASIC is loaded. Plain English DOS lines are untouched.
+- **Messages.** K-BASIC's `LIST` (`KB_OUT`) does not use DOS's `$A702`. It prints through the driver's `DRV_COUT` (`$EE63`) and is simply not called if the output hook is not the driver's. K-BASIC does not depend on the English DOS error text, `$A702` or the name parser (`$A043-$A061`). So the messages patch and the Hangul-first names patch do not break K-BASIC.
+- **K-BASIC's install messages** (`BRUN KBASIC` only) print through DOS's output path and show Hangul as raw keys if the output behind DOS is not the driver (no guard). This is existing behavior, unrelated to this change.
+- **What the driver side must keep:** (i) K-BASIC hard-codes `$F6D1` and `$F6A2` in card code to recognize `LIST`. If card code moves before these, `LIST` silently shows English; tell the K-BASIC session if it moves. (ii) The stubs at `$9400` / `$940A`, the "KB" mark at `$8A03` with entries at `$8A05` / `$8A08`, and `KBBASE=$8A00` must stay. (iii) K-BASIC patches the zero-page CHRGET (`$C5-$C7` = `JMP $0350`) and a 30-byte stub at `$0350`. If the rebuild entry (`SATREINIT`) re-installs the driver's own CHRGET patch, K-BASIC's is removed. **I checked the source: the driver has no code that writes `$C5-$C7` or `$0350` (7.4).** (iv) DOS-side patches such as `$A702`, `$A04D` and `$A000` do not touch K-BASIC memory (`$8A00-$93FF`, `$0350`, `$C5-$C7`) or the Saturn bank logic.
 
 ### 8.3 Recommendation and decisions for you
 
 1. **Do the messages and the `CATALOG` header** (section 4). Do it on both cards and add the hook to the rebuild entry.
 2. **Document Hangul in file names** that start with an English letter (it works now) and mention the Ctrl-A rule and the comma workaround in the manual.
 3. **Allow Hangul-first names** (5.2) together with the messages: only 20-30 bytes.
-4. **Aliases**: because of the sizes in 8.2, start with the 9 marked "yes" and add the others when space allows. First check the open question in MAME (6.1, half a day). Your decision: start with 9, or aim for all 28.
-5. **`./name`** does not fit now. Postpone it or shrink something else. Please decide.
-6. **Fix the comma problem in the line editor** if you want file names (or aliases) followed by options to work. Say if you want that; it is a driver change.
-7. Before building: review the Korean wording, re-measure the free space in the Saturn bank, and ask the K-BASIC session to test the four renamed names.
-8. Under the version rules this is a change. VERSION goes up only when you say so.
+4. **Aliases**: because of the sizes in 8.2, start with the 9 marked "yes" and add the others when space allows. Your decision: start with 9, or aim for all 28.
+5. **Where the hook goes (6.4)**: (a) one hook at DOS's `$A000`, (b) one hook in the line input, (c) both. My recommendation is (a): the tests show it handles typed lines and program lines, and it saves card space. A test with K-BASIC loaded has to be done on the K-BASIC side (not in this repository), so the K-BASIC session must be asked. If Korean commands inside programs are not needed, (b) is also fine.
+6. **Space on the Saturn card**: the plain card just fits, but the Saturn `$D000` image does not. Please decide whether to investigate using another bank.
+7. **Fix the comma problem in the line editor** if you want file names (or aliases) followed by options to work. The same fix would also remove the Ctrl-A problem inside programs (6.4, item 3) and the stray `$81` after an alias (item 2). Say if you want that; it is a driver change.
+8. Before building: review the Korean wording, ask the K-BASIC session to test the four renamed names, and test the Hangul-first-name hook, the untested commands (`OPEN`/`READ`/`WRITE`/`APPEND`/`EXEC`/`BLOAD`) and the IIe.
+9. Under the version rules this is a change. VERSION goes up only when you say so.
