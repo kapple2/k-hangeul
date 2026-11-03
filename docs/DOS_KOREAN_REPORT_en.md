@@ -213,7 +213,7 @@ A real fix would be a small change in the line editor so that a comma (and maybe
 
 `목록` instead of `CATALOG`, `저장 NAME` instead of `SAVE NAME`.
 
-All 28 commands, one per line, with a Korean suggestion. "Alias?" is my advice: **yes** = typed at the prompt often, worth an alias; **maybe** = mostly used inside programs, cheap to add later (6-12 bytes each); **no** = leave in English. The names are drafts for your review. The last column is for the answer of the K-BASIC session (asked, see the note below the table).
+All 28 commands, one per line, with a Korean suggestion. "Alias?" is my advice: **yes** = typed at the prompt often, worth an alias; **maybe** = mostly used inside programs, cheap to add later (6-12 bytes each); **no** = leave in English. The names are drafts for your review. **Decision of 2026-11-02: `PR#`, `IN#` and `FP` are AS IS (left unchanged), and all the other 25 get a Korean name.** So the "no" in the "alias?" column was my advice, and all 25 will be done (changed to "yes (decided)" in the table). The last column is for the answer of the K-BASIC session (asked, see the note below the table).
 
 | # | English | suggested Korean | what it does | alias? | covered by K-BASIC? |
 |---|---|---|---|---|---|
@@ -234,17 +234,17 @@ All 28 commands, one per line, with a Korean suggestion. "Alias?" is my advice: 
 | 15 | POSITION | 자리 | moves inside a text file | maybe | no |
 | 16 | EXEC | 일괄 | runs a text file as typed commands | maybe | no |
 | 17 | CATALOG | 목록 | lists the files | yes | no |
-| 18 | MON | 감시 | shows disk I/O trace | no | no |
-| 19 | NOMON | 감시끝 | hides it | no | no |
-| 20 | PR# | (stay English) | selects the output slot | no | no |
-| 21 | IN# | (stay English) | selects the input slot | no | no |
-| 22 | MAXFILES | 최대파일 | sets the number of file buffers | no | no |
-| 23 | FP | (stay English) | switches to Applesoft | no | no |
-| 24 | HAN | 한글 | restarts the Hangul driver (replaces `INT`) | no (its name is already Hangul-like) | no |
+| 18 | MON | 감시 | shows disk I/O trace | yes (decided) | no |
+| 19 | NOMON | 감시끝 | hides it | yes (decided) | no |
+| 20 | PR# | **AS IS** (stays English, not changed) | selects the output slot | no | no |
+| 21 | IN# | **AS IS** (stays English, not changed) | selects the input slot | no | no |
+| 22 | MAXFILES | 최대파일 | sets the number of file buffers | yes (decided) | no |
+| 23 | FP | **AS IS** (stays English, not changed) | switches to Applesoft | no | no |
+| 24 | HAN | 한글 | restarts the Hangul driver (replaces `INT`) | yes (decided) | no |
 | 25 | BSAVE | 이진저장 | saves a binary file | maybe | no |
 | 26 | BLOAD | 이진불러오기 | loads a binary file | maybe | no |
 | 27 | BRUN | 이진가동 | loads and runs a binary file | maybe | no |
-| 28 | VERIFY | 검사 | checks that a file can be read | no | no |
+| 28 | VERIFY | 검사 | checks that a file can be read | yes (decided) | no |
 
 Notes on the names: `읽기` is used for READ so LOAD gets `불러오기`. Names that start with `이어`, like `이어쓰기` (APPEND), are fine. So that no K-BASIC word sits inside a name, CHAIN is `연결`, EXEC is `일괄`, BRUN is `이진가동` and BLOAD is `이진불러오기` (see the check below). `PR#` and `IN#` contain `#`, which is awkward to type after a Hangul word, so they stay English.
 
@@ -319,13 +319,13 @@ I patched a `JMP` into `$A000` and loaded a test hook of about 210 bytes into RA
 | 5 | program `10 PRINT CHR$(4);"목록"`, then `RUN` | the catalog is listed ✓ |
 | 6 | program `PRINT CHR$(4);"저장 T1"`, then `RUN` | file `T1` appears ✓ |
 | 7 | program `PRINT CHR$(4);"CATALOG"` (English, hook present) | the catalog is listed ✓ (English unchanged) |
-| 8 | program with no Ctrl-A before the closing quote, `"목록"` | ✗ `?SYNTAX ERROR` and garbage characters (see 3 below) |
+| 8 | program line `10 PRINT CHR$(4);"목록"` typed with no Ctrl-A before the closing quote, then `RUN` | the catalog is listed ✓ (the line editor closes it at Return). But Hangul mode stays on after that line, so the next `RUN` I typed came out as jamo (see 3 below) |
 
 What the tests showed (to be respected by the real code):
 
 1. **A program line starts with Ctrl-D (`$84`) and the command text begins at `$0201`** (a typed line begins at `$0200`). The hook must decide the start by checking whether `$0200` is Ctrl-D. DOS's `$AA5D` is not the start; it is the read position and cannot be used (my first attempt was wrong).
 2. **The line editor puts the closing Ctrl-A (`$81`) after the space.** `저장 T1` arrives as `...word keys A0 81 T1`, so the `$81` stays in front of the file name and DOS rejects the name (same cause as the comma problem in 5.4). The hook must delete the first `$81` after the alias (before any Hangul run starts). With that added, tests 2 and 3 passed.
-3. **When writing it in a program, end Hangul mode with Ctrl-A before the closing quote.** Otherwise a `$81` stays after the closing quote and Applesoft gives `?SYNTAX ERROR`. That is a matter for the line editor (and Applesoft), not for the hook, and has the same root cause as 5.4. Fixing the line editor (the optional item in 5.4) removes it too.
+3. **There is no need to press Ctrl-A before the closing quote.** The line editor closes the `$81` at Return (tests 4 and 8; I first wrote this up as a failure, but what looked like a failure was Hangul mode staying on after that line, so the `RUN` I typed next came out as jamo `ㄱㅜㅕ`). That is existing behavior, unrelated to the hook: after typing a line with Hangul inside quotes, press Ctrl-A to turn Hangul mode off before typing the next line. This was tested without K-BASIC.
 4. **Where the test code sat:** I first put the test code at `$0360`; at 176 bytes it overwrote `$03D0-$03FF` (DOS's reconnect entry and vectors) and every program broke, even English commands. The real code must not touch that area; it goes on the card.
 5. English program commands (`"CATALOG"`) and English typed lines still work with the hook present (test 7).
 
@@ -362,7 +362,7 @@ The `$A000` hook, in contrast, sees the text DOS receives at run time, so it has
 - **A comma after a Hangul file name.** `BSAVE B한,A768,L4` gives `?SYNTAX ERROR`. Put the Hangul name last on the line, or save with an English name and then use `RENAME` (5.4). Fixing the line editor solves it (a driver change, needs the user's permission).
 - **Hangul name length.** DOS allows 30 bytes, so 7-9 syllables (5.5).
 - **File names that contain a K-BASIC word.** K-BASIC rewrites the keys of a word in a typed line, so `LOAD 읽기파일` becomes `LOAD READ...` (8.2a). Avoid such names.
-- **Ctrl-A when writing in a program.** Hangul mode must be ended before the closing quote (test 8 in 6.4).
+- **Hangul mode stays on after a line with Hangul in it.** If a line with Hangul inside quotes is typed without Ctrl-A, the line is stored correctly but Hangul mode stays on, so English typed next (such as `RUN`) comes out as jamo. Turn it off with Ctrl-A first (6.4, item 3). This already happens today and has nothing to do with this change.
 - **Hangul names saved without Ctrl-A.** Noise shows on plain DOS (5.5).
 
 ### 7.3 What not to do
@@ -378,7 +378,7 @@ The `$A000` hook, in contrast, sees the text DOS receives at run time, so it has
 |---|---|
 | the `$A000` hook | works for typed lines and program lines in the test (table in 6.4) |
 | whether `SATREINIT` removes K-BASIC's CHRGET patch | the driver source has no code that writes `$C5-$C7` or `$0350`. The driver only calls CHRGET (`$B1`, `$B7`). So by the source, the rebuild entry has no reason to remove K-BASIC's patch. (Checked in the source; I did not run it with K-BASIC loaded.) |
-| free space on the Saturn card | the `$D000` image of the Saturn build has only 186 contiguous free bytes, starting at `$D316` (the plain build has 685 bytes from `$D153`). Using other banks was not examined. |
+| free space on the Saturn card | the `$D000` image of the Saturn build has only 186 contiguous free bytes, starting at `$D316` (the plain build has 685 bytes from `$D153`). Besides the 186 bytes in bank 7, the `$D000` first page (4 KB) of the cache bank (bank 6) is unused and can hold data tables (8.2). |
 | Apple IIe | not tested. DOS 3.3's parser is the same, so I expect the DOS-side hook to be the same, but whether the driver runs on a IIe is a separate matter outside this report. |
 | text-file commands (`OPEN`, `READ`, `WRITE`, `APPEND`, `EXEC`) and `BLOAD` | not tested. They go through the same parser and the same hook, so I expect the first-word replacement to work. In a program the text goes to DOS one line at a time (`D$;"OPEN NAME"`), so the Ctrl-A rule in 6.4 applies as is. |
 | the hook with K-BASIC loaded | not tested (K-BASIC is not in this repository). What the K-BASIC session checked in its source is in 8.2a. |
@@ -396,20 +396,26 @@ The `$A000` hook, in contrast, sees the text DOS receives at run time, so it has
 | 4 | An alias looks only at the **first word** of the line. Where one name is the start of another (`감시` / `감시끝`), the longer is matched first | The method confirmed by the tests in 6.4. |
 | 5 | The `./name` run command is not done (user decision, 2026-11-02) | Not enough card space. |
 | 6 | Hangul in file names that start with an English letter works today, so document it | MAME tests in section 5. |
+| 7 | The hook is **one hook at DOS's `$A000`** (user decision, 2026-11-02) | In the tests in 6.4 it handled both typed lines and program lines. It saves card space. |
+| 8 | On Saturn the data (message text, alias table) goes in **free space in bank 7 first**; if that is not enough, the `$D000` first page of the cache bank (6) (user decision, 2026-11-02) | Option C in 8.2b, then A. The bank-switching read code has to be designed and tested. |
+| 9 | **Fix the line editor's comma and Ctrl-A problems, as a separate change, later** (user approval, 2026-11-02) | The same fix could remove the Hangul-name-after-comma problem, the stray `$81` after an alias, and Hangul mode staying on. It needs the Hangul-input regression tests and a check by the K-BASIC session. |
+| 10 | **No code is changed until the user says so** (user instruction, 2026-11-02) | The test code so far lives only in a scratch folder; nothing in the repository was changed. |
+| 11 | A plain 16 KB card with K-BASIC is K-BASIC's original target and is expected to work | Korean messages and Hangul-first names do not involve K-BASIC, and the aliases were renamed so they do not clash (decision 3). The hook with K-BASIC loaded has not been tested. K-BASIC on Saturn needs separate changes. |
+| 12 | The Korean command names (aliases) are done for **all 25**. `PR#`, `IN#` and `FP` are AS IS (stay English) (user decision, 2026-11-02) | Three of the 28 have no Korean name. For the size see 8.2: even on the plain card it does not fit in one block, so the small free fragments are used or something is shortened. |
 
-Where the hook goes (the line input, or DOS's `$A000`) is **not decided yet** (item 5 in 8.3). The test results show that the `$A000` hook handles both typed lines and program lines (6.4).
+**Not decided yet:** the list of the 25 Korean names (needs review), and what to shorten if space is short (8.2).
 
 ### 8.2 Size: does it all fit?
 
 | item | bytes | note |
 |---|---|---|
 | messages + header | 380-410 | the plain card has 685 contiguous free bytes from `$D153` (669 measured earlier as usable) |
-| 9 aliases (estimate from the test code) | about 220-240 | 110-130 of code + about 12 per alias |
-| **both together** | **600-650** | just fits on the plain card, leaving 20-85 |
-| all 28 aliases | about 400 or more | does not fit together with the messages |
+| 25 aliases, compact format (estimate) | about 340-380 | 110-130 of code + about 9 per alias (Korean key + DOS command number) |
+| **both together** | **about 720-790** | more than the 670-715 contiguous free bytes on the plain card. The missing 30-120 bytes come from the small free fragments (about 165 bytes) or from shortening |
+| 25 aliases in the uncompressed format (about 12-17 per alias) | about 410-550 | does not fit, so the compact format is a must |
 | Hangul-first file names | 20-30 | nearly full if added |
 
-**Saturn build:** the `$D000` image has only 186 contiguous free bytes starting at `$D316` (plus a few small pieces). The total above does not fit in this image. The Saturn card has 128 KB, so the code could probably live in another bank, but I did not check (it needs calls across banks). Other ways to shrink: shorten the message wording further; use the free block at `$0800-$1FFF` on the plain card (93 bytes) and the Saturn `$9400` fragments. Each new DOS hook also costs a few bytes in the rebuild entry (`SATREINIT=$D3FA`).
+**Saturn build:** the `$D000` image has only 186 contiguous free bytes starting at `$D316` (plus a few small pieces). The total above does not fit in this image. The Saturn card is 128 KB (8 banks of 16 KB), but K-HANGEUL uses only bank 7. The kScheme session's answer (details in kScheme's `src/docs/KSCHEME-MEMORY.md`): bank 0 is kScheme's own layout (a hard need); banks 1-5 hold vectors and strings ("use all 128 KB" is a design rule, not a hard need); bank 6 is the cache bank (when K-HANGEUL holds bank 7). At start-up it writes a detection tag at `$FF80` in banks 1-7 temporarily and restores it. So on Saturn the places we can use are: (1) free space in bank 7: 186 bytes from `$D316` (the free tail of the Korean-font page has not been measured). (2) In the cache bank (bank 6), the `$D000` first page (4 KB) and `$FF00-$FFFF` (256 bytes) that kScheme does not use: kScheme says no change is needed on its side. This suits data tables (message text, the alias table), but the driver needs extra code to switch the bank and read it (I estimate tens of bytes; not designed). (3) kScheme giving up its top vector bank: about 3 bytes of kScheme code, and 16 KB (about 17-20%) less vector space. (4) About 256 bytes of kScheme's main RAM (its hash table `$1400-$17FF` or the top of its stack `$1000-$11FF`). Other ways to shrink: shorten the message wording further; use the free block at `$0800-$1FFF` on the plain card (93 bytes) and the Saturn `$9400` fragments. Each new DOS hook also costs a few bytes in the rebuild entry (`SATREINIT=$D3FA`).
 
 ### 8.2a Effect on K-BASIC (checked by the K-BASIC session in its own source)
 
@@ -419,14 +425,54 @@ Where the hook goes (the line input, or DOS's `$A000`) is **not decided yet** (i
 - **K-BASIC's install messages** (`BRUN KBASIC` only) print through DOS's output path and show Hangul as raw keys if the output behind DOS is not the driver (no guard). This is existing behavior, unrelated to this change.
 - **What the driver side must keep:** (i) K-BASIC hard-codes `$F6D1` and `$F6A2` in card code to recognize `LIST`. If card code moves before these, `LIST` silently shows English; tell the K-BASIC session if it moves. (ii) The stubs at `$9400` / `$940A`, the "KB" mark at `$8A03` with entries at `$8A05` / `$8A08`, and `KBBASE=$8A00` must stay. (iii) K-BASIC patches the zero-page CHRGET (`$C5-$C7` = `JMP $0350`) and a 30-byte stub at `$0350`. If the rebuild entry (`SATREINIT`) re-installs the driver's own CHRGET patch, K-BASIC's is removed. **I checked the source: the driver has no code that writes `$C5-$C7` or `$0350` (7.4).** (iv) DOS-side patches such as `$A702`, `$A04D` and `$A000` do not touch K-BASIC memory (`$8A00-$93FF`, `$0350`, `$C5-$C7`) or the Saturn bank logic.
 
+### 8.2b Saturn bank split (the kScheme session's proposal and answers)
+
+These are the answers of the kScheme session, from its own source and documents (`src/docs/KSCHEME-MEMORY.md`, `KSCHEME-MEMORY.ko.md`). Its design rule "use all 128 KB" is a default policy, not an obligation, and it can leave banks or parts of banks to K-HANGEUL. It will report the cost before any change if we give it the exact range.
+
+**How much it uses:** a typical program uses almost nothing of banks 1-5 (0 KB with no vectors; strings are in main RAM). The cache fills as modules are loaded: 7.8 KB in one test (capacity 11.75 KB). The worst case is a program that allocates up to about 80 KB of vectors.
+
+**Proposed split (with K-HANGEUL present)**
+
+| Bank | Use | Whose |
+|---|---|---|
+| 0 | heap, plus one 4 KB vector arena (page 2) | kScheme (a hard need) |
+| 1-3 | vectors, 48 KB | kScheme |
+| 4 | kept free for kScheme code later (not designed; about 16 KB estimated) | kScheme |
+| 5 | free | K-HANGEUL or the user |
+| 6 | file cache. But its `$D000` first page (4 KB) and `$FF00-$FFFF` (256 bytes) stay free | K-HANGEUL may use them |
+| 7 | K-HANGEUL | K-HANGEUL |
+
+- To leave banks 4 and 5 free, kScheme sets `nbanks` to 4 in `far_detect`: a few bytes of boot-only code, with no growth in the core. The price is that vector capacity drops from 80 KB to 48 KB (from 96 KB to 48 KB without K-HANGEUL). A vector program that needs more than 48 KB gets a "no memory" error.
+- The code bank (4) and K-HANGEUL's places (5, the free parts of 6, and 7) do not overlap.
+- The standalone compiler `SCC` runs by itself with neither kScheme nor K-HANGEUL, so it needs no banks.
+- Bank 6 is the cache bank only when `KHG1` is found in bank 7. Otherwise the cache is in bank 7.
+
+**Rules K-HANGEUL must follow when it reads a bank (from the kScheme session)**
+
+1. Leave Saturn bank 0 selected on return (`$C084`). kScheme assumes bank 0 whenever it is outside its own `far_getw` / `far_putw` / `far_getb`. The driver's trampoline already returns that way (ROM visible, write protected, bank 0).
+2. Restore the card state from `SATSTATE` (`$95E2`): `$08` = ROM visible, `$38` = card RAM read/write. kScheme keeps that byte current.
+3. Only switch the bank and read `$D000` page 1. Do not write to banks 1-5, and in the cache bank write nothing except `$D000` page 1 and `$FF00-$FFFF`.
+4. On return, **leave `$D000` page 1 selected.** kScheme's `ram_on` does not re-select page 1 itself; it expects page 1 (the heap). The kScheme session did not verify this part, so it must be tested.
+5. kScheme never calls the driver from inside a `far_*` access and runs with interrupts off, so there is no IRQ race.
+
+**What K-HANGEUL needs is small** (about 420 bytes: the Korean DOS message text and the command-name table, and a few hundred bytes more later). Where the data can go:
+
+| Option | Place | Change on kScheme's side | Cost and risk |
+|---|---|---|---|
+| A | cache bank (6), `$D000` first page, 4 KB | none | the driver needs extra code to switch the bank and read (tens of bytes estimated, not designed). The number 6 depends on the number of banks on the card and where `KHG1` is |
+| B | the whole of bank 5 (16 KB) | `nbanks` = 4, 0 bytes of core code | 32 KB less vector space. Only if much more is needed later |
+| C | free space in bank 7 | none | the simplest (no bank number needed). Only 186 contiguous free bytes, which may not be enough. The free tail of the Korean-font page and `$DF75-$DFFF` have not been measured |
+
+The kScheme session recommended C (it is our own bank, so we don't depend on where the cache bank sits). My recommendation is to measure C first (whether the free space covers the code and the data together), and use A if it is not enough.
+
 ### 8.3 Recommendation and decisions for you
 
 1. **Do the messages and the `CATALOG` header** (section 4). Do it on both cards and add the hook to the rebuild entry.
 2. **Document Hangul in file names** that start with an English letter (it works now) and mention the Ctrl-A rule and the comma workaround in the manual.
 3. **Allow Hangul-first names** (5.2) together with the messages: only 20-30 bytes.
-4. **Aliases**: because of the sizes in 8.2, start with the 9 marked "yes" and add the others when space allows. Your decision: start with 9, or aim for all 28.
+4. **Aliases**: decided to do all 25 (8.1, item 12). Because they do not fit in one block (8.2), (a) shrink the alias table by storing the DOS command number and dropping the first Ctrl-K, (b) shorten the message wording, and (c) if still short, split the table over the small free fragments of the plain card (about 165 bytes: `$FA42` and others, and the 93 bytes of main RAM `$0800-$1FFF`). Which shortening to use will be measured while building, and reported.
 5. **Where the hook goes (6.4)**: (a) one hook at DOS's `$A000`, (b) one hook in the line input, (c) both. My recommendation is (a): the tests show it handles typed lines and program lines, and it saves card space. A test with K-BASIC loaded has to be done on the K-BASIC side (not in this repository), so the K-BASIC session must be asked. If Korean commands inside programs are not needed, (b) is also fine.
-6. **Space on the Saturn card**: the plain card just fits, but the Saturn `$D000` image does not. Please decide whether to investigate using another bank.
-7. **Fix the comma problem in the line editor** if you want file names (or aliases) followed by options to work. The same fix would also remove the Ctrl-A problem inside programs (6.4, item 3) and the stray `$81` after an alias (item 2). Say if you want that; it is a driver change.
+6. **Space on the Saturn card**: the plain card just fits, but the Saturn `$D000` image does not. Please choose among options A (cache bank 6), B (bank 5) and C (free space in bank 7) in 8.2b. My recommendation is to measure C first and use A if it is not enough. The bank-switching read code has to be designed and tested.
+7. **Fix the comma problem in the line editor** if you want file names (or aliases) followed by options to work. Depending on how it is fixed, the same change could also remove the stray `$81` after an alias (6.4, item 2) and Hangul mode staying on after a line (item 3). Say if you want that; it is a driver change.
 8. Before building: review the Korean wording, ask the K-BASIC session to test the four renamed names, and test the Hangul-first-name hook, the untested commands (`OPEN`/`READ`/`WRITE`/`APPEND`/`EXEC`/`BLOAD`) and the IIe.
 9. Under the version rules this is a change. VERSION goes up only when you say so.
