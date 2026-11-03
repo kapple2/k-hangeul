@@ -996,6 +996,95 @@ SatReinitEntry:
         .byte $01,$5A
 .assert SatReinitEntry = SATREINIT, error, "the rebuild entry moved"
 .endif
+.if !SATURN
+; ---------------------------------------------------------------------------
+; Korean DOS error messages (docs/DOS_KOREAN_REPORT.md, section 4). DOS prints message number X (0-15) with its routine at
+; $A702; INIT patches the first three bytes of that routine into a JMP to KSTUB (a stub in main RAM, at the end of the banner
+; segment). KSTUB runs this routine with the card on, but only when DOS's output is the driver's; otherwise it does what the
+; DOS routine did. The texts are Hangul keystroke text (Ctrl-K, keys, Ctrl-A), which COUT draws; each ends with $00.
+; Message 0 is CR, bell, CR; messages 2 and 3 are both RANGE ERROR. The English text stays in DOS.
+; ---------------------------------------------------------------------------
+KMSGC:
+        ldy  KOFF,x
+        cpx  #KMSGK2
+        bcs  @b
+@a:     lda  KSTR1,y
+        beq  @e
+        jsr  COUT                   ; keeps A, X and Y
+        iny
+        bne  @a
+@e:     rts
+@b:     lda  KSTR2,y
+        beq  @e
+        jsr  COUT
+        iny
+        bne  @b
+        rts
+; INIT's last step in the plain build (DPX jumps here). DOS's routine that prints message X starts at $A702 with
+; lda $AA3F,x / tax  (BD 3F AA AA). Patch its first three bytes into  jmp KSTUB  if they are exactly that, so that a second INIT
+; (the HAN command) or another DOS leaves it alone. The Saturn arrangement does not do this yet: its stub has to go through
+; the bank trampoline.
+KPATCH:
+        lda  $A702
+        cmp  #$BD
+        bne  @h
+        lda  $A703
+        cmp  #$3F
+        bne  @h
+        lda  $A704
+        cmp  #$AA
+        bne  @h
+        lda  $A705
+        cmp  #$AA                   ; tax
+        bne  @h
+        lda  #$4C
+        sta  $A702
+        lda  #<KSTUB
+        sta  $A703
+        lda  #>KSTUB
+        sta  $A704
+@h:     lda  $ADAF                  ; the CATALOG header: DOS prints the 12 bytes at $B3AF backwards ("DISK VOLUME "):
+        cmp  #$0B                   ; ldx #$0B / lda $B3AF,x / jsr $FDED / dex / bpl  (operand at $ADAF)
+        bne  @x
+        lda  $B3AF                  ; the text as stock DOS 3.3 has it
+        cmp  #$A0
+        bne  @x
+        lda  $B3BA
+        cmp  #$C4
+        bne  @x
+        lda  #$08                   ; print 9 bytes, not 12: the Korean for "volume" and a space need no more
+        sta  $ADAF
+        ldx  #$08
+@c:     lda  KHDR,x
+        sta  $B3AF,x
+        dex
+        bpl  @c
+@x:     jmp  STATEINIT
+; $B3AF-$B3B7: "볼륨 " (Hangul keystroke text: Ctrl-K, Q H F F B A, Ctrl-A, space), stored backwards as DOS prints it. It is
+; written only when the driver was loaded, so DOS prints the English header without it. There is no room for "디스크 볼륨"
+; (17 bytes); the English header is 12 bytes and the bytes after it hold other DOS data.
+KHDR:   .byte $A0,$81,$C1,$C2,$C6,$C6,$C8,$D1,$8B
+KMSGK2 = 14                    ; the first message number whose text is in the second table
+KOFF:                           ; start of the Korean text of message 0..15, in KSTR1 or (from KMSGK2 on) KSTR2
+        .byte $00,$04,$24,$24,$34,$47,$56,$68,$81,$94,$AB,$BC,$CC,$DB,$00,$1B
+KSTR1:
+        .byte $8D,$87,$8D,$00   ; 0 CR BELL CR: (CR, bell, CR)
+        .byte $8B,$C4,$CA,$D3,$C4,$CA,$C6,$CD,$C6,$81,$A0,$8B,$BC,$CD,$C6,$81,$A0,$8B,$D4,$CE,$81,$A0,$8B,$C4,$CA,$D1,$D4,$C4,$CD,$C1,$81,$00   ; 1 LANGUAGE NOT AVAILABLE: 언어를 쓸 수 없음
+        .byte $8B,$D1,$CA,$C1,$C4,$CE,$CC,$81,$A0,$8B,$C4,$C8,$C6,$C2,$81,$00   ; 2 RANGE ERROR: 범위 오류
+        .byte $8B,$BC,$CD,$D2,$CC,$81,$A0,$8B,$D2,$CD,$C1,$D7,$CC,$C5,$C8,$CC,$C1,$81,$00   ; 4 WRITE PROTECTED: 쓰기 금지됨
+        .byte $8B,$C5,$D0,$C4,$CC,$D8,$CA,$81,$A0,$8B,$AD,$CD,$D8,$81,$00   ; 5 END OF DATA: 데이터 끝
+        .byte $8B,$D6,$CB,$C4,$CC,$C6,$81,$A0,$8B,$C4,$CA,$D1,$D4,$C4,$CD,$C1,$81,$00   ; 6 FILE NOT FOUND: 파일 없음
+        .byte $8B,$D1,$C8,$C6,$C6,$C2,$C1,$81,$A0,$8B,$D1,$CA,$D3,$C7,$C8,$81,$A0,$8B,$C5,$CB,$C6,$CD,$C1,$81,$00   ; 7 VOLUME MISMATCH: 볼륨 번호 다름
+        .byte $8B,$C4,$CC,$D1,$C3,$CE,$C6,$C6,$D5,$D2,$81,$A0,$8B,$C4,$C8,$C6,$C2,$81,$00   ; 8 I/O ERROR: 입출력 오류
+        .byte $8B,$C5,$CC,$D4,$CD,$DA,$CD,$81,$A0,$8B,$D2,$CB,$C5,$CD,$D2,$81,$A0,$8B,$C3,$CB,$C1,$81,$00   ; 9 DISK FULL: 디스크 가득 참
+        .byte $8B,$D6,$CB,$C4,$CC,$C6,$81,$A0,$8B,$D7,$CB,$C1,$D2,$CC,$C1,$81,$00   ; 10 FILE LOCKED: 파일 잠김
+        .byte $8B,$C1,$CE,$D3,$D1,$CA,$D1,$81,$A0,$8B,$C4,$C8,$C6,$C2,$81,$00   ; 11 SYNTAX ERROR: 문법 오류
+        .byte $8B,$D1,$CA,$D6,$CA,$81,$A0,$8B,$D1,$CE,$D7,$C8,$D2,$81,$00   ; 12 NO BUFFERS AVAILABLE: 버퍼 부족
+        .byte $8B,$D6,$CB,$C4,$CC,$C6,$81,$A0,$8B,$D7,$C8,$C4,$C6,$C2,$81,$A0,$8B,$C5,$CB,$C6,$CD,$C1,$81,$00   ; 13 FILE TYPE MISMATCH: 파일 종류 다름
+KSTR2:
+        .byte $8B,$D6,$CD,$C6,$C8,$D2,$CD,$C6,$CF,$C1,$C4,$CC,$81,$A0,$8B,$D3,$CA,$C1,$CE,$81,$A0,$8B,$DA,$CD,$C1,$81,$00   ; 14 PROGRAM TOO LARGE: 프로그램이 너무 큼
+        .byte $8B,$D7,$CC,$D2,$D7,$CA,$D1,$81,$A0,$8B,$C1,$D5,$C4,$C6,$D5,$C4,$81,$A0,$8B,$C4,$CB,$D3,$CC,$C1,$81,$00   ; 15 NOT DIRECT COMMAND: 직접 명령 아님
+.endif
         .res 1024-(*-FREE_D000)
 
 ; ==========================================================================
@@ -1506,7 +1595,11 @@ BCP:
         lda  #>CATWAIT
         sta  $AE3B                  ; D7A7  8D 3B AE
 DPX:
+.if SATURN
         jmp  STATEINIT              ; D7AA  4C DA E3
+.else
+        jmp  KPATCH                 ; the Korean DOS messages patch (in the free block, KMSGC); it ends with jmp STATEINIT
+.endif
 BSRCL:
         .byte <__BANNER_LOAD__
 BSRCH:
@@ -5914,6 +6007,26 @@ HANMAIN:
         CARDON                      ; $C080: language card RAM read
         jsr  STATEINIT
         rts
+
+; DOS calls this instead of the start of its message routine (see KMSGC). X = the message number. It runs in main RAM, as the
+; stubs do. Output not through the driver ($37 is the high byte of the output routine DOS saved) leaves the English text.
+KSTUBSZ = 22
+.if SATURN
+KSTUB:
+        .res KSTUBSZ                ; not built for the Saturn arrangement
+.else
+KSTUB:
+        lda  CSWH
+        cmp  #$94                   ; the driver's COUT stub is at $940A
+        bne  @e
+        lda  LCRAMRD                ; card on
+        jsr  KMSGC
+        lda  LCROMRD                ; card off
+        rts
+@e:     lda  $AA3F,x                ; what the DOS routine did first
+        jmp  $A705                  ; ... and the rest of it (tax, the loop)
+.assert * - KSTUB = KSTUBSZ, error, "KSTUBSZ is wrong"
+.endif
 
 ; room for the patch lists (tools/satpack.py writes them here); empty when SATLOAD = 0
 .segment "SATDATA"

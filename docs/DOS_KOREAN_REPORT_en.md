@@ -104,7 +104,7 @@ Please mark what you want changed.
 | 12 | FILE TYPE MISMATCH | 파일 종류 다름 | 23 | 파일 형식 불일치 |
 | 13 | PROGRAM TOO LARGE | 프로그램이 너무 큼 | 26 | |
 | 14 | NOT DIRECT COMMAND | 직접 명령 아님 | 25 | |
-| – | `DISK VOLUME ` (header) | 디스크 볼륨 | 18 | |
+| – | `DISK VOLUME ` (header) | 볼륨 ("디스크" dropped for lack of room, see 9) | 9 | |
 
 Questions: (a) "오류" or "에러"; (b) "볼륨" or "디스크 번호"; (c) I left out polite endings (…합니다) because they cost bytes. Is that OK?
 
@@ -476,3 +476,64 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 7. **Fix the comma problem in the line editor** if you want file names (or aliases) followed by options to work. Depending on how it is fixed, the same change could also remove the stray `$81` after an alias (6.4, item 2) and Hangul mode staying on after a line (item 3). Say if you want that; it is a driver change.
 8. Before building: review the Korean wording, ask the K-BASIC session to test the four renamed names, and test the Hangul-first-name hook, the untested commands (`OPEN`/`READ`/`WRITE`/`APPEND`/`EXEC`/`BLOAD`) and the IIe.
 9. Under the version rules this is a change. VERSION goes up only when you say so.
+
+## 9. Implementation status (branch `dos-korean`, 2026-11-03) and what could not be tested
+
+### 9.1 What is done (plain 16 KB card)
+
+- **Korean error messages:** the first 3 bytes of DOS's message printing routine at `$A702` become `jmp KSTUB`. `KSTUB` lives in main RAM (end of the banner area, `$1FCF`, 22 bytes). If DOS's output is the driver's, it runs `KMSGC` on the card, which prints the Korean text through `COUT`; otherwise DOS prints its English text unchanged. All 15 message numbers have text (`KOFF`, `KSTR1`, `KSTR2`).
+- **`CATALOG` header:** done with data only, no extra code. DOS prints the 12 bytes at `$B3AF` backwards in a loop; the count (the operand at `$ADAF`) is cut to 9 and the bytes are replaced by `볼륨 ` (keystroke text), stored backwards. So the header reads `볼륨 254`. **"디스크 볼륨" is 17 bytes and does not fit, so "디스크" was dropped** (this replaces the 18-byte plan in the 4.2 table).
+- **Install:** the end of INIT (`DPX`) now goes to `KPATCH` in the card's free block. `KPATCH` patches DOS only when its bytes are exactly as expected, then returns with `jmp STATEINIT`. Installing again with the HAN command leaves what is already patched alone (the byte checks).
+- **Saturn build:** the code above is only in the plain build. Saturn still prints the English messages and header (it needs a path through the bank trampoline, 8.2b).
+- **Size:** the contiguous free space on the card went from 685 to 251 bytes (from `$D305`). The messages, header and install code use about 434 bytes. `KSTUB` in main RAM is 22 bytes.
+- **Only `src/driver/driver.s` was changed, and the build was done with `build.bat` (without the disk step).** The disk images in `disk/` were not changed.
+
+### 9.2 What was confirmed in MAME (Apple II+, plain 16 KB card)
+
+| Test | Result |
+|---|---|
+| `LOAD NOSUCH` (no. 6, FILE NOT FOUND) | `파일 없음` ✓ |
+| `MAXFILES 0` (no. 2, RANGE ERROR) | `범위 오류` ✓ |
+| `LOAD K-HANGEUL` (no. 13, FILE TYPE MISMATCH) | `파일 종류 다름` ✓ |
+| `LOCK HELLO`, then `DELETE HELLO` (no. 10, FILE LOCKED) | `파일 잠김` ✓ |
+| program `10 PRINT CHR$(4);"FOO"`, then `RUN` (no. 11, SYNTAX ERROR) | `문법 오류` ✓ |
+| `LOAD HELLO,V1` (no. 7, VOLUME MISMATCH) | `볼륨 번호 다름` ✓ |
+| `LOAD HELLO,D2` with drive 2 empty (no. 8, I/O ERROR) | `입출력 오류` ✓ |
+| `MAXFILES 1`, then a program opening two files (no. 12, NO BUFFERS AVAILABLE) | `버퍼 부족` ✓ |
+| reading the text file `SAMPLE1` to its end (no. 5, END OF DATA) | `데이터 끝` ✓ |
+| `BSAVE` filling the disk (no. 9, DISK FULL) | `디스크 가득 참` ✓ |
+| `SAVE T9` on a disk mounted read-only (no. 4, WRITE PROTECTED) | `쓰기 금지됨` ✓ |
+| `HIMEM:16450`, then `LOAD DEMO` (no. 14, PROGRAM TOO LARGE) | `프로그램이 너무 큼` ✓ |
+| `READ X` in direct mode (no. 15, NOT DIRECT COMMAND) | `직접 명령 아님` ✓ |
+| `CATALOG` | header `볼륨 254` and the file list ✓ |
+| `CATALOG` with two or more pages, advancing by key | the second page looks normal ✓ |
+| `HAN` typed twice, then `LOAD NOSUCH` | still `파일 없음` ✓ |
+| `PR#0`, then `LOAD NOSUCH` | English `FILE NOT FOUND` ✓ (the English fallback) |
+| the driver on a blank DOS 3.3 disk (`dos33blank.dsk`), `LOAD NOSUCH` and `CATALOG` | `파일 없음`, header `볼륨 254` ✓ |
+| the new driver on a copy of the K-BASIC disk (`KBASIC.DSK`; K-BASIC itself only read), `EXEC KSTART`, then `LOAD NOSUCH` | `파일 없음` after `KBASIC V1.0 OK` ✓. K-BASIC's `LIST` still shows `출력` ✓ |
+| a driver built from the previous commit (`349603e`) against the new one, same input (three Hangul lines and `RUN DEMO`), comparing the 8192 hi-res bytes | 0 bytes differ ✓ |
+| Saturn card (`-sl0 ssram`): boot and `LOAD NOSUCH` | boots, English message (as designed) ✓ |
+
+### 9.3 What could not be tested, or is not done yet
+
+**Could not be tested (with a reason)**
+
+1. **Apple IIe:** the MAME folder on this machine has only the Apple II+ ROM set (`apple2p.zip`) and no IIe set, so `apple2ee` stops with "romset not found". There was no way to test a IIe, IIc or IIgs.
+2. **The Korean text of no. 1 (`LANGUAGE NOT AVAILABLE`, `언어를 쓸 수 없음`):** DOS prints it when `INT` or `FP` asks for a language that is not there. This driver uses the `INT` command's slot for `HAN`, and `FP` always works, so I found no way to provoke it. The text comes from the same converter and was only checked by reading it back, not on screen.
+3. **With kScheme loaded:** kScheme runs only on the Saturn card, and the Saturn build has no Korean messages yet, so there is nothing to test now.
+4. **The repository's regression tool `tools/perf/diff_sim.py`:** it needs a Python 6502 simulator (py65, not in the repository, must be installed), a `pack_story` module that is not in the repository, and a memory dump, so it cannot run as it is. Instead I did the screen comparison of the previous and new builds in 9.2. It is not a test that draws all 11,172 syllables.
+
+**Not tested (but could be)**
+
+5. **The path that skips the patch when DOS's bytes are not as expected:** the checks exist, but I did not build a different DOS to prove it. (Both DOS disks I tried, the project disk and the blank DOS 3.3 disk, have matching bytes, so the patch applied on both.)
+6. **Programs that catch DOS errors with `ONERR GOTO`:** the error codes are unchanged, so I expect no effect, but I did not test it. A program that reads or interprets DOS error text will now receive Hangul.
+7. **The `CATALOG` header and other messages with K-BASIC loaded:** only `LOAD NOSUCH` was checked.
+
+**A limit that is not fixed**
+
+8. **The `CATALOG` header after `PR#0`:** because only data was changed, when output is not the driver the Hangul key letters show as they are, as `QHFFBA 254` (confirmed). Messages fall back to English; the header does not.
+
+**Not built yet**
+
+9. Korean messages and header on the Saturn card, Hangul-first file names, and Korean command names.
+10. Rebuilding the distribution disk `disk/K-HANGEUL.DSK`, and a review of the message wording (the translations are the 4.2 draft as it was).
