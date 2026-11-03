@@ -596,3 +596,29 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 - A program that catches an `INIT` error with `ONERR GOTO` gets no message, so DOS stays stock (English messages, no Korean command names) until the next DOS message or the next `INIT`.
 - On a DOS that is not stock 3.3 at one of the patched places, the patch there was skipped, but the swap still writes the stock byte while `INIT` runs, so that disk gets a stock byte there.
 - **Card space is now almost gone on the plain card:** 6 bytes in the free block, 1 byte in the command-name area.
+
+### 9.5 The Saturn card (B)
+
+**How it is built.**
+- The message code and texts and the command-name code are in two include files (`src/driver/kdos_msg.inc`, `kdos_cmd.inc`), assembled twice: in the 16K card build as before, and in a new segment `BANK6` (scope `K6`) that runs at `$D000` of bank 6, page 1 (769 bytes, `$D000-$D300`). kScheme leaves that page alone when K-HANGEUL is in bank 7 (its answer in this session). The two copies differ only in how they leave (`KEXIT` or `SatLeave1`) and print (`COUT` or `K6PUT`); the Saturn copy has no INIT guard.
+- The loader (`SatFinish`) copies `BANK6` into bank 6 page 1, only when the driver goes into bank 7 (a 128K card).
+- `KPATCH6` (bank 7, in the free bytes before the shift masks; 1 byte left there) runs at the end of `SATCOPY`, so at start-up, at `HAN` and at the rebuild entry `$D3FA`. It writes the stubs and makes the DOS patches, each only if DOS has the stock bytes.
+- Stubs: `$BCDF-$BCFA` in DOS's unused bytes (28 bytes, outside the `$9400` block, so kScheme's load does not wipe them): `K6IN` counts the entry in `SATDEPTH` and maps bank 6 page 1, `K6MSG` (`$A702`), `K6AL` (`$A000`), `K6PUT` (prints through `$940A`, which enters and leaves bank 7, then maps bank 6 again). The file-name stub `K6FN` is at `$95A6-$95AB` in the `$9400` block (free bytes after the trampoline's piece 2), written by every `SATCOPY`, so `$D3FA` makes it again.
+- Each routine leaves with `jmp SatLeave1` after pushing the address to go on at: the outermost leave selects bank 0 and the caller's card state (`SATSTATE`), as kScheme expects.
+- `INIT` on a Saturn card still runs `HAN` (the loader writes `jmp SATHAN` at `$A55B`), so these patches never reach a new disk. The INIT guard for Saturn needs more main RAM than is free (the `$BCDF` area is full).
+
+**MAME tests (`-sl0 ssram`).**
+
+| Test | Result |
+|---|---|
+| boot, `LOAD NOSUCH` | the Saturn banner line, `파일 없음` ✓ |
+| `저장 한글`, `10 PRINT 9`, `불러오기 한글`, `LIST`, `실행` | `10 PRINT 1`, then `1` ✓ |
+| `목록` | header `볼륨 254` and the list ✓ |
+| program `20 PRINT CHR$(4);"저장 T8"`, `실행`, `잠금 T8`, `지우기 T8` | `1`, then `파일 잠김` ✓ |
+| `HAN` twice, then `LOAD NOSUCH` | `파일 없음` ✓ |
+| `INIT HELLO` | runs `HAN`, the disk is unchanged (as designed) ✓ |
+| 16K card after the change: messages, `저장 한글` / `불러오기 한글` / `실행`, `INIT HELLO` with the guard | as before ✓ |
+
+**Not tested yet.** With kScheme loaded (asked the kScheme session to run its start-up, file I/O and `(exit)` with this build); `PR#0` on a Saturn card (the text page after `PR#0` was hard to read in the test); a 64K Saturn card (by design DOS stays English there).
+
+**Space left on Saturn:** bank 7 free block 1 byte; DOS `$BCFB-$BCFF` 5 bytes; `$95AC-$95AD` 2 bytes; bank 6 page 1 about 3.3 KB.

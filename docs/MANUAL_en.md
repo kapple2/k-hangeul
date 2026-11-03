@@ -234,9 +234,9 @@ They do what `TYPE` does, but instead of typing each letter they **draw a whole 
 - `RUN STYPEDEMO` and `RUN STORYS` on the disk are examples.
 
 
-## 8. Korean DOS (16K language card)
+## 8. Korean DOS
 
-With a 16K language card, DOS 3.3 talks Korean while K-HANGEUL is loaded. **Not yet on a Saturn card**: there DOS still prints English, the Korean command names do not work, and `INIT` restarts the driver as `HAN` does.
+While K-HANGEUL is loaded, DOS 3.3 talks Korean, with a 16K language card and with a 128K Saturn card. **One difference on a Saturn card: `INIT` (`포맷`) does not format there yet**; it restarts the driver as `HAN` does. Format disks with a 16K card or without K-HANGEUL. On a Saturn card that is not 128K (the driver not in bank 7), DOS stays English.
 
 **Error messages and the CATALOG header** are in Korean:
 
@@ -275,7 +275,7 @@ How to type them:
 
 **Hangul file names.** A file name may start with Hangul: `SAVE ` Ctrl-K `한글` Ctrl-A. `CATALOG` shows it in Hangul. A name holds 30 key presses, about 7 to 9 syllables.
 
-**`포맷` / `INIT`** formats a disk and saves the program in memory on it, as in plain DOS 3.3. The new disk gets plain DOS 3.3, so it also boots on a machine without K-HANGEUL; to use Hangul on it, copy the files as in section 9.
+**`포맷` / `INIT`** (16K card) formats a disk and saves the program in memory on it, as in plain DOS 3.3. The new disk gets plain DOS 3.3, so it also boots on a machine without K-HANGEUL; to use Hangul on it, copy the files as in section 9.
 
 **Limits:**
 - A comma right after a Hangul file name does not work (`BSAVE 한글,A$300,L4` gives a syntax error). Put the Hangul name last, or save with an English name and then `RENAME` it to the Hangul name.

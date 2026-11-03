@@ -172,3 +172,11 @@ A program that is loaded over `$9400–$95FF` (kScheme's file has 512 zero bytes
 - **Tested** in MAME: after the whole block was overwritten with zeros, `BRUN` of a test program that calls the entry returned to BASIC, `PRINT` worked, and `CSW`/`KSW` pointed to the stubs again. Not tested with a real kScheme load.
 
 The addresses `$D3FA`, `$D3FD`, `$D3FE`, `$D3FF` and `$FFF5–$FFF8` do not move; the build has an assert for the entry.
+
+## Korean DOS on a Saturn card
+
+- Bank 6, `$D000` page 1, `$D000-$D300` (769 bytes): the Korean DOS code (segment `BANK6`), copied by the loader when the driver is in bank 7. kScheme leaves this page alone when K-HANGEUL is in bank 7.
+- DOS's unused bytes `$BCDF-$BCFA`: the stubs `K6IN`, `K6SEL`, `K6MSG`, `K6AL`, `K6PUT`.
+- `$95A6-$95AB` in the `$9400-$95FF` block: the stub `K6FN`, written by every `SATCOPY` (so the rebuild entry `$D3FA` makes it again).
+- Bank 7: `KPATCH6` and its data fill the free bytes before the shift masks (`$D316-$D3CF`).
+- Main RAM `$0800-$1FFF` is still not used on a Saturn card.
