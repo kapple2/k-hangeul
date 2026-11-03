@@ -37,7 +37,7 @@
 .import __LCIMG_LOAD__, __LCIMG_SIZE__
 .import __BANNER_LOAD__, __BANNER_RUN__, __BANNER_SIZE__
 .if SATLOAD
-.import __SATDATA_LOAD__
+.import __SATDATA_LOAD__, __BANK6_LOAD__, __BANK6_SIZE__
 .endif
 .export COUT, BHEX, BPAR, BDEC, NUM          ; the labels KBASIC calls (written to the label file by ld65 -Ln)
 
@@ -351,6 +351,27 @@ SatFinish:
         sta  SATSIG,x
         dex
         bpl  @sg
+        lda  SatSelByte             ; the driver in bank 7: the Korean DOS code into bank 6, $D000 page 1
+        cmp  #$8F
+        bne  @r
+        lda  $C08E                  ; bank 6
+        lda  $C08B                  ; $D000 page 1, RAM read and write
+        lda  $C08B
+        lda  #<__BANK6_LOAD__
+        sta  $06
+        lda  #>__BANK6_LOAD__
+        sta  $07
+        lda  #$00
+        sta  $08
+        lda  #$D0
+        sta  $09
+        lda  #>__BANK6_SIZE__
+        sta  $FF
+        ldx  #<__BANK6_SIZE__
+        jsr  CopyBytes
+        lda  $C08F                  ; bank 7 again, page 2 write enabled, as before
+        lda  LCROMWR
+        lda  LCROMWR
 @r:     rts
 ; pack the English font: 128 glyphs of 16 bytes (10 used) at ENGSRC into 10 bytes each at ENGFONT
 SatPackEn:
@@ -822,7 +843,8 @@ SATCOPY:
         lda  SATSELV                    ; the loader wrote the switch of the top bank here (0: stand-alone test build, keep bank 7)
         beq  @d
         sta  SATR3 + (SatEbit - SatP3) + 1
-@d:     lda  #$08
+@d:     jsr  KPATCH6                    ; the Korean DOS patches (INIT, HAN and the rebuild entry all come here)
+        lda  #$08
         sta  SATSTATE
         lda  #$01
         sta  SATDEPTH
@@ -983,6 +1005,95 @@ SatBanner:                          ; the end of STOCKINIT: the start-up banner,
         sta  BANOK
         jmp  BN
 @n:     jmp  SatLeave1              ; HAN: the banner is gone; leave as BN would
+; ---------------------------------------------------------------------------
+; Korean DOS on a Saturn card (the code is in bank 6, segment BANK6, scope K6). Only with the driver in bank 7. KPATCH6 writes
+; the stubs and patches DOS like KPATCH of the 16K card build; each patch only if DOS has the stock bytes there. The stubs:
+;   K6IN  ($BCDF) count the entry (SATDEPTH, as SatEnter does) and map bank 6, $D000 page 1, read
+;   K6SEL ($BCE2) the last part of it, also used by K6PUT
+;   K6MSG ($BCE9) DOS's message routine ($A702): K6IN, then K6::KMSGC
+;   K6AL  ($BCEF) DOS's code for a line it does not know ($A000): K6IN, then K6::KAL
+;   K6PUT ($BCF5) print A from bank 6: the driver's output entry $940A (which enters and leaves bank 7), then bank 6 again
+;   K6FN  ($95A6, free bytes of the $9400 block, made again by every SATCOPY) DOS's file name check ($A04D): K6IN, K6::KFNC
+; INIT still runs HAN on a Saturn card (the loader writes jmp SATHAN at $A55B), so these patches never reach a new disk.
+; ---------------------------------------------------------------------------
+K6IN  = $BCDF
+K6SEL = K6IN + 3
+K6MSG = K6IN + 10
+K6AL  = K6IN + 16
+K6PUT = K6IN + 22
+K6FN  = $95A6
+.assert K6PUT = K6::KPUTC, error, "K6PUT moved"
+.assert SatLeave1 = K6::KX, error, "SatLeave1 moved"
+K6DB:   .byte $EE,<SATDEPTH,>SATDEPTH, $2C,$8E,$C0, $2C,$88,$C0, $60     ; K6IN: inc SATDEPTH / bit $C08E / bit $C088 / rts
+        .byte $20,<K6IN,>K6IN, $4C,<K6::KMSGC,>K6::KMSGC                ; K6MSG
+        .byte $20,<K6IN,>K6IN, $4C,<K6::KAL,>K6::KAL                    ; K6AL
+        .byte $20,$0A,$94, $4C,<K6SEL,>K6SEL                            ; K6PUT
+K6DSZ = * - K6DB
+.assert K6DSZ <= 33, error, "the Saturn stubs do not fit in $BCDF-$BCFF"
+K6FNB:  .byte $20,<K6IN,>K6IN, $4C,<K6::KFNC,>K6::KFNC                  ; K6FN
+K6R:    rts
+KPATCH6:
+        lda  SATSELV
+        cmp  #$8F                       ; bank 7 (then bank 6 page 1 holds the code; kScheme leaves it alone)
+        bne  K6R
+        ldx  #5
+@n:     lda  K6FNB,x
+        sta  K6FN,x
+        dex
+        bpl  @n
+        lda  K6IN
+        cmp  #$EE                       ; the stubs are there already (HAN, the rebuild entry)
+        beq  @m
+        ldx  #K6DSZ-1
+@z:     lda  K6IN,x                     ; else the bytes must be free (zero)
+        bne  K6R
+        dex
+        bpl  @z
+        ldx  #K6DSZ-1
+@c:     lda  K6DB,x
+        sta  K6IN,x
+        dex
+        bpl  @c
+@m:     lda  $A702                      ; messages: lda $AA3F,x / tax (the first byte is checked)
+        cmp  #$BD
+        bne  @f
+        lda  #$4C
+        sta  $A702
+        lda  #<K6MSG
+        sta  $A703
+        lda  #>K6MSG
+        sta  $A704
+@f:     lda  $A04F                      ; file names: jmp $A000 at $A04D
+        cmp  #$A0
+        bne  @a
+        lda  #<K6FN
+        sta  $A04E
+        lda  #>K6FN
+        sta  $A04F
+@a:     lda  $A000                      ; command names: lda $0200 at $A000
+        cmp  #$AD
+        bne  @h
+        lda  #$4C
+        sta  $A000
+        lda  #<K6AL
+        sta  $A001
+        lda  #>K6AL
+        sta  $A002
+@h:     lda  $ADAF                      ; the CATALOG header, as in KPATCH
+        cmp  #$0B
+        bne  @x
+        lda  $B3AF
+        cmp  #$A0
+        bne  @x
+        lda  #$08
+        sta  $ADAF
+        ldx  #$08
+@hc:    lda  KHDR6,x
+        sta  $B3AF,x
+        dex
+        bpl  @hc
+@x:     rts
+KHDR6:  .byte $A0,$81,$C1,$C2,$C6,$C6,$C8,$D1,$8B
 SatPadEnd:
         .res FMASK-$D000-(*-FREE_D000)
         .incbin "build/FONT12.bin", 4416, 42      ; the shift masks, at the end of the font file
@@ -1006,33 +1117,10 @@ SatReinitEntry:
 ; DOS routine did. The texts are Hangul keystroke text (Ctrl-K, keys, Ctrl-A), which COUT draws; each ends with $00.
 ; Message 0 is CR, bell, CR; messages 2 and 3 are both RANGE ERROR. The English text stays in DOS.
 ; ---------------------------------------------------------------------------
-KMSGC:                          ; entered from KSTUB with the card on; X = message number; the stack top is the caller's return
-        jsr  KBACKC                 ; INIT failed (the INIT guard): the patches again
-        lda  CSWH
-        cmp  #$94                   ; DOS's output is not the driver's (PR#n): leave the English text
-        beq  @k
-        lda  #$A7                   ; go on at $A705, the  tax  that DOS's routine runs after  lda $AA3F,x
-        pha
-        lda  #$04
-        pha
-        lda  $AA3F,x
-        jmp  KEXIT
-@k:     ldy  KOFF,x
-        cpx  #KMSGK2
-        bcs  @b
-@a:     lda  KSTR1,y
-        beq  @e
-        jsr  COUT                   ; keeps A, X and Y
-        iny
-        bne  @a
-@e:     jmp  KEXIT                  ; card off, then rts to the caller
-@b:     lda  KSTR2,y
-        beq  @e
-        jsr  COUT
-        iny
-        bne  @b
-        beq  @e
-
+KX = KEXIT                          ; the routines in kdos_msg.inc and kdos_cmd.inc leave through KX, print through KPUTC,
+KPUTC = COUT                        ; and swap the INIT guard back if KGUARD (the bank-6 copy for Saturn sets them otherwise)
+KGUARD = 1
+.include "kdos_msg.inc"
 ; INIT's last step in the plain build (DPX jumps here). DOS's routine that prints message X starts at $A702 with
 ; lda $AA3F,x / tax  (BD 3F AA AA). Patch its first three bytes into  jmp KSTUB  if they are exactly that, so that a second INIT
 ; (the HAN command) or another DOS leaves it alone. The Saturn arrangement does not do this yet: its stub has to go through
@@ -1180,26 +1268,7 @@ KSWAP:  bit  LCRAMRW
         sta  KSWF
         bit  LCRAMRD                ; RAM read, write protected again
         rts
-KMSGK2 = 14                    ; the first message number whose text is in the second table
-KOFF:                           ; start of the Korean text of message 0..15, in KSTR1 or (from KMSGK2 on) KSTR2
-        .byte $00,$04,$24,$24,$34,$47,$56,$68,$81,$94,$AB,$BC,$CC,$DB,$00,$1B
-KSTR1:
-        .byte $8D,$87,$8D,$00   ; 0 CR BELL CR: (CR, bell, CR)
-        .byte $8B,$C4,$CA,$D3,$C4,$CA,$C6,$CD,$C6,$81,$A0,$8B,$BC,$CD,$C6,$81,$A0,$8B,$D4,$CE,$81,$A0,$8B,$C4,$CA,$D1,$D4,$C4,$CD,$C1,$81,$00   ; 1 LANGUAGE NOT AVAILABLE: 언어를 쓸 수 없음
-        .byte $8B,$D1,$CA,$C1,$C4,$CE,$CC,$81,$A0,$8B,$C4,$C8,$C6,$C2,$81,$00   ; 2 RANGE ERROR: 범위 오류
-        .byte $8B,$BC,$CD,$D2,$CC,$81,$A0,$8B,$D2,$CD,$C1,$D7,$CC,$C5,$C8,$CC,$C1,$81,$00   ; 4 WRITE PROTECTED: 쓰기 금지됨
-        .byte $8B,$C5,$D0,$C4,$CC,$D8,$CA,$81,$A0,$8B,$AD,$CD,$D8,$81,$00   ; 5 END OF DATA: 데이터 끝
-        .byte $8B,$D6,$CB,$C4,$CC,$C6,$81,$A0,$8B,$C4,$CA,$D1,$D4,$C4,$CD,$C1,$81,$00   ; 6 FILE NOT FOUND: 파일 없음
-        .byte $8B,$D1,$C8,$C6,$C6,$C2,$C1,$81,$A0,$8B,$D1,$CA,$D3,$C7,$C8,$81,$A0,$8B,$C5,$CB,$C6,$CD,$C1,$81,$00   ; 7 VOLUME MISMATCH: 볼륨 번호 다름
-        .byte $8B,$C4,$CC,$D1,$C3,$CE,$C6,$C6,$D5,$D2,$81,$A0,$8B,$C4,$C8,$C6,$C2,$81,$00   ; 8 I/O ERROR: 입출력 오류
-        .byte $8B,$C5,$CC,$D4,$CD,$DA,$CD,$81,$A0,$8B,$D2,$CB,$C5,$CD,$D2,$81,$A0,$8B,$C3,$CB,$C1,$81,$00   ; 9 DISK FULL: 디스크 가득 참
-        .byte $8B,$D6,$CB,$C4,$CC,$C6,$81,$A0,$8B,$D7,$CB,$C1,$D2,$CC,$C1,$81,$00   ; 10 FILE LOCKED: 파일 잠김
-        .byte $8B,$C1,$CE,$D3,$D1,$CA,$D1,$81,$A0,$8B,$C4,$C8,$C6,$C2,$81,$00   ; 11 SYNTAX ERROR: 문법 오류
-        .byte $8B,$D1,$CA,$D6,$CA,$81,$A0,$8B,$D1,$CE,$D7,$C8,$D2,$81,$00   ; 12 NO BUFFERS AVAILABLE: 버퍼 부족
-        .byte $8B,$D6,$CB,$C4,$CC,$C6,$81,$A0,$8B,$D7,$C8,$C4,$C6,$C2,$81,$A0,$8B,$C5,$CB,$C6,$CD,$C1,$81,$00   ; 13 FILE TYPE MISMATCH: 파일 종류 다름
-KSTR2:
-        .byte $8B,$D6,$CD,$C6,$C8,$D2,$CD,$C6,$CF,$C1,$C4,$CC,$81,$A0,$8B,$D3,$CA,$C1,$CE,$81,$A0,$8B,$DA,$CD,$C1,$81,$00   ; 14 PROGRAM TOO LARGE: 프로그램이 너무 큼
-        .byte $8B,$D7,$CC,$D2,$D7,$CA,$D1,$81,$A0,$8B,$C1,$D5,$C4,$C6,$D5,$C4,$81,$A0,$8B,$C4,$CB,$D3,$CC,$C1,$81,$00   ; 15 NOT DIRECT COMMAND: 직접 명령 아님
+
 .endif
         .res 1024-(*-FREE_D000)
 
@@ -1868,234 +1937,7 @@ SatUnpackEnd:
 ; The English glyphs of the control codes 0-31 are empty, so the first 512 bytes of ENGFONT ($D860-$DA5F) are free in this
 ; build (ENGCOPY does not copy them; a control code that is drawn at all shows these bytes as dots instead of a blank).
 ; The Korean DOS command names are here.
-; Korean DOS command names (report section 6). DOS sends every line it does not know to $A000 (a typed line goes on to
-; Applesoft, a program line gets DOS's own SYNTAX ERROR). INIT patches $A000 into a jump to KALS (main RAM), which comes here
-; with the card on. The line is in $0200; a line from a program has Ctrl-D ($84) at $0200 and the text from $0201. If the text
-; is a Hangul run whose first word is one of the names below, that word is replaced in place by DOS's English word, and DOS
-; parses the line again from $9FCD. Anything else goes the way the original $A000 code went (KORIG).
-; A name is recognised by a 16-bit hash of its keystrokes (everything after the Ctrl-K up to a space, comma, Ctrl-A or Return):
-; each key does  h = rotate-left-16(h) xor key. The 28 slots follow DOS's command table at $A884 (INIT, LOAD, SAVE ...), the
-; slot number is the number of the command whose English word is read from that table, so the English words cost nothing here.
-; An AS IS command (PR#, IN#, FP) has the hash $FFFF. The hashes were checked to be different from each other.
-KHLO = $F8                          ; the hash, then (low) the start of the rest of the line when it is moved
-KHHI = $F9                          ; the hash, then 2 when "A0 8B" must follow the English word
-KBASE = $FA                         ; index in $0200 of the Ctrl-K that starts the Korean word
-KWEND = $FB                         ; index of the first byte after the word
-KELEN = $FC                         ; length of the English word
-KEST = $FD                          ; where the English word starts, as an offset from $A884
-KDST = $FE                          ; index where the rest of the line goes
-KNSLOT = 28
-KAL:
-        ldx  #0
-        lda  $0200
-        cmp  $AAB2                  ; Ctrl-D: the line is from a program
-        bne  @1
-        inx
-@1:     lda  $0200,x
-        cmp  #$8B
-        beq  @2
-        jmp  KORIG
-@2:     stx  KBASE
-        lda  #0
-        sta  KHLO
-        sta  KHHI
-@h:     inx
-        lda  $0200,x
-        cmp  #$AC                   ; a comma
-        beq  @e
-        cmp  #$A1                   ; a space ($A0), Ctrl-A, Return: the word ends
-        bcc  @e
-        tay
-        asl  KHLO                   ; h = rotate-left-16(h) xor key
-        rol  KHHI
-        bcc  @n
-        inc  KHLO
-@n:     tya
-        eor  KHLO
-        sta  KHLO
-        jmp  @h
-@e:     stx  KWEND
-        ldy  #0
-@m:     lda  KHASH,y
-        cmp  KHLO
-        bne  @s
-        lda  KHASH+1,y
-        cmp  KHHI
-        beq  @f
-@s:     iny
-        iny
-        cpy  #KNSLOT*2
-        bcc  @m
-        jmp  KORIG
-@f:     tya                         ; the slot number
-        lsr  a
-        tax
-        ldy  #0
-        cpx  #0
-        beq  @g
-@w:     lda  $A884,y                ; skip the words of DOS's command table before it (a word ends with bit 7 set)
-        iny
-        asl  a
-        bcc  @w
-        dex
-        bne  @w
-@g:     sty  KEST
-        lda  #0
-        sta  KELEN
-@c:     lda  $A884,y                ; the length of the English word
-        iny
-        inc  KELEN
-        asl  a
-        bcc  @c
-        ldx  KWEND                  ; what follows the Korean word
-        lda  #0
-        sta  KHHI                   ; (the hash is not needed now) 0 = nothing is added after the English word
-        lda  $0200,x
-        cmp  #$A0
-        bne  @cv
-        lda  $0201,x                ; space, then a Hangul key (a jamo letter or a tense key - = * < > ; +): the run goes on
-        cmp  #$BB                   ; into a Hangul file name. The English word replaces the Korean one and the space, and
-        bcs  @ex                    ; "space, Ctrl-K" follows it so the name keeps its Ctrl-K
-        cmp  #$AA
-        beq  @ex
-        cmp  #$AB
-        beq  @ex
-        cmp  #$AD
-        bne  @cv
-@ex:    lda  #2
-        sta  KHHI
-        bne  @mv
-@cv:    lda  $0200,x                ; otherwise the run's closing Ctrl-A is somewhere after the word (the line editor puts it
-        cmp  #$8D                   ; before the next letter, or at Return); DOS would stop on it, so make the first one a space
-        beq  @mv
-        cmp  #$8B
-        beq  @mv
-        cmp  #$81
-        beq  @v1
-        inx
-        bne  @cv
-@v1:    lda  #$A0
-        sta  $0200,x
-@mv:    ldx  KWEND
-        lda  KHHI
-        beq  @x1
-        inx                         ; the space is replaced too
-@x1:    lda  KBASE                  ; where the rest of the line goes: after the English word (and the 2 bytes if any)
-        clc
-        adc  KELEN
-        adc  KHHI
-        sta  KDST
-        cpx  KDST
-        beq  @put
-        bcs  @dn
-        stx  KHLO                   ; the rest of the line moves up: copy it from the end, back to KHLO
-@e1:    lda  $0200,x
-        cmp  #$8D
-        beq  @e2
-        inx
-        bne  @e1
-@e2:    txa
-        sec
-        sbc  KHLO
-        clc
-        adc  KDST
-        tay
-@u:     lda  $0200,x
-        sta  $0200,y
-        dex
-        dey
-        cpx  KHLO
-        bcs  @u
-        bcc  @put
-@dn:    ldy  KDST                   ; the rest of the line moves down: copy it from the front
-@d:     lda  $0200,x
-        sta  $0200,y
-        inx
-        iny
-        cmp  #$8D
-        bne  @d
-@put:   ldy  KEST                   ; write the English word as typed keys (bit 7 set)
-        ldx  KBASE
-@p:     lda  $A884,y
-        iny
-        ora  #$80
-        sta  $0200,x
-        inx
-        dec  KELEN
-        bne  @p
-        lda  KHHI
-        beq  @ok
-        lda  #$A0
-        sta  $0200,x
-        inx
-        lda  #$8B
-        sta  $0200,x
-@ok:    lda  KBASE                  ; a typed line: DOS gives Applesoft the saved X ($AA5A) as the line length, and Applesoft
-        bne  @q                     ; ends the line there; the length changed, so it is the index of the Return now
-        tax
-@sc:    lda  $0200,x
-        cmp  #$8D
-        beq  @st
-        inx
-        bne  @sc
-@st:    stx  $AA5A
-@q:     lda  #$9F                   ; parse the line again: go on at $9FCD
-        ldx  #$CC
-        bne  KGO
-; the original $A000 code:  lda $0200 / cmp $AAB2 / beq $A00B / jmp $9FA4  (a program line goes to $A00B, a typed one to Applesoft)
-KORIG:  lda  $0200
-        cmp  $AAB2
-        beq  @o
-        lda  #$9F
-        ldx  #$A3
-        bne  KGO
-@o:     lda  #$A0
-        ldx  #$0A
-KGO:    pha                         ; go on at (A,X)+1 with the card off: the address is pushed, KEXIT does the rts
-        txa
-        pha
-        jmp  KEXIT
-; DOS's file name check at $A04D (KFN in main RAM) comes here with the card on and A = the first character shifted left.
-; Ctrl-K ($8B, a Hangul name) goes on to $A050 (which rotates the carry back in); anything else is a syntax error as before,
-; which is the $A000 code above.
-KFNC:   cmp  #$16
-        beq  @k
-        jmp  KAL
-@k:     lda  #$A0                   ; go on at $A050: push $A04F, and A must be $16 again (the carry is set by the cmp)
-        pha
-        lda  #$4F
-        pha
-        lda  #$16
-        jmp  KEXIT
-KHASH:
-        .word $096E                  ;  0 INIT 포맷
-        .word $9788                  ;  1 LOAD 불러오기
-        .word $092E                  ;  2 SAVE 저장
-        .word $1236                  ;  3 RUN 실행
-        .word $116C                  ;  4 CHAIN 연결
-        .word $1250                  ;  5 DELETE 지우기
-        .word $124B                  ;  6 LOCK 잠금
-        .word $0960                  ;  7 UNLOCK 풀기
-        .word $0874                  ;  8 CLOSE 닫기
-        .word $1050                  ;  9 READ 읽기
-        .word $2000                  ; 10 EXEC 일괄
-        .word $07BC                  ; 11 WRITE 쓰기
-        .word $04D4                  ; 12 POSITION 자리
-        .word $0898                  ; 13 OPEN 열기
-        .word $429C                  ; 14 APPEND 이어쓰기
-        .word $04C0                  ; 15 RENAME 이름바꿈
-        .word $106A                  ; 16 CATALOG 목록
-        .word $0918                  ; 17 MON 감시
-        .word $4B36                  ; 18 NOMON 감시끝
-        .word $FFFF                  ; 19 PR# (AS IS)
-        .word $FFFF                  ; 20 IN# (AS IS)
-        .word $09D7                  ; 21 MAXFILES 최대파일
-        .word $FFFF                  ; 22 FP (AS IS)
-        .word $10DC                  ; 23 HAN 한글
-        .word $0FCF                  ; 24 BSAVE 이진저장
-        .word $F998                  ; 25 BLOAD 이진불러오기
-        .word $0FD9                  ; 26 BRUN 이진가동
-        .word $0917                  ; 27 VERIFY 검사
+.include "kdos_cmd.inc"
 KINITC:                             ; DOS's INIT handler with the card on: make DOS stock, then go on at DOS's INIT ($A54F)
         jsr  KBACKC                 ; (if a failed INIT was never followed by a message, DOS is stock already: patch it first)
         jsr  KSWAP
@@ -6418,6 +6260,22 @@ KFN:    bit  LCRAMRD
 KALS:   bit  LCRAMRD
         jmp  KAL
 .assert * - KEXIT = KSTUBSZ, error, "KSTUBSZ is wrong"
+.endif
+
+; Saturn card: the Korean DOS code for bank 6, $D000 page 1 (kScheme leaves that page alone when K-HANGEUL is in bank 7).
+; SatFinish copies it there when the driver goes into bank 7. It runs from main RAM stubs (K6IN, in DOS's unused bytes
+; $BCDF, written by KPATCH6) that count the entry and map bank 6 page 1; it prints through K6PUT (the driver's $940A, then
+; bank 6 again) and leaves through SatLeave1 (bank 0 and the caller's card state). It does not depend on SATURN, so the
+; plain-and-patch-list build (build) carries the same bytes as the Saturn build.
+.segment "BANK6"
+.if SATLOAD
+.scope K6
+KX = $9521                          ; SatLeave1 (SATR1)
+KPUTC = $BCF5                       ; K6PUT
+KGUARD = 0
+.include "kdos_msg.inc"
+.include "kdos_cmd.inc"
+.endscope
 .endif
 
 ; room for the patch lists (tools/satpack.py writes them here); empty when SATLOAD = 0
