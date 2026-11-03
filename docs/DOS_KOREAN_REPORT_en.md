@@ -566,3 +566,33 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
    - **Limits of the command names:** (a) a Hangul word that is not a name but has the same 16-bit hash as one would be taken as that command (about 25 in 65,536). (b) After a name, a Hangul file name typed in the same run must start with a jamo or tense key; a name that starts with a digit or a sign is taken as English arguments. (c) The comma problem (5.4) still applies to a Hangul file name followed by a comma. (d) The test harness drops keys while typing Hangul fast (after `NEW` especially); those runs were repeated with slower typing, and are not driver faults.
    - **Space left:** the card's free block has 166 bytes (from `$D35A`); the command-name area has 107 of 512 bytes (91 below glyph 31); main RAM `$1CC0-$1FEF` has 11 bytes.
 10. Rebuilding the distribution disk `disk/K-HANGEUL.DSK`, and a review of the message wording (the translations are the 4.2 draft as it was).
+
+### 9.4 INIT (`포맷`) and the INIT guard (plain card)
+
+**What was found.** Since the original Hangeul2, the loader wrote `jmp HANMAIN` into the middle of DOS's `INIT` code (`$A55B`) so that the `HAN` command (in the slot of `INT`, `$A59E`) could branch there. So `INIT` never formatted a disk while the driver was loaded: it re-ran the driver like `HAN` (confirmed in MAME with the build of commit `349603e` and with the new one; the disk was unchanged).
+
+**What changed (user decision, option 2).**
+- `HAN` now has its own `jmp HANMAIN` at `$A59E`; DOS's `INIT` code is no longer touched. On the Saturn card `INIT` still runs `HAN` as before (the loader writes `jmp SATHAN` at `$A55B` there), until the Saturn work (B) gives it the guard too.
+- **The guard.** DOS's handler table entry for `INIT` (`$9D1E`) points to `KINITS` in DOS's unused bytes `$BCDF-$BCFF`. It swaps every byte the driver changed in DOS with the stock byte kept in a table (`KSWT`: `$A000`, `$A04E`, `$A59E`, `$A8F1`, `$ADA3`, `$ADAF`, `$AE3A`, `$B3B0`, `$9D1E`), so DOS is stock while `INIT` writes the disk. `INIT`'s handler returns to `KPOST`, which swaps back.
+- **When `INIT` fails**, DOS jumps away and does not return to `KPOST`; it prints its error message. The message routine `$A702` is not swapped: it jumps to `KSTUBD`, also in `$BCDF`, which goes to the driver only while DOS's output is the driver's (`$37 = $94`), and otherwise does what stock DOS did. The driver's message code swaps back first. So a failed `INIT` prints a Korean message and the patches are back right away.
+- **What a new disk gets.** The stock DOS, except `$A702` (`jmp $BCEF`) and the 31 bytes at `$BCDF`, which without the driver just print DOS's own English message. The flag that says "DOS is stock now" is a byte in the card, so `HAN` (which refills the `$9400` block) does not lose it.
+- If `$BCDF-$BCFF` is not all zero (another DOS or a program uses it), the guard is not installed and `INIT` runs `HAN`, as it always did.
+
+**Tests in MAME (plain card).**
+
+| Test | Result |
+|---|---|
+| `10 PRINT "HI"`, `INIT HELLO` | disk formatted, only `HELLO` on it ✓ |
+| then `LOAD NOSUCH`, `목록` in the same session | `파일 없음`, `볼륨 254` (the patches are back) ✓ |
+| boot that disk without the driver: the screen | `HI` (HELLO runs) ✓ |
+| `LOAD NOSUCH`, `CATALOG`, `LIST`, `RUN` there | `FILE NOT FOUND`, `DISK VOLUME 254`, `10 PRINT "HI"`, `HI` ✓ |
+| its DOS in memory against stock DOS 3.3 | only `$A702-$A704` and `$BCDF-$BCFD` differ (plus DOS's working bytes) ✓ |
+| `INIT HELLO` on a write-protected disk | `입출력 오류`, the disk is unchanged; then `LOAD NOSUCH` gives `파일 없음` ✓ |
+| `포맷 HELLO` | formats, then `파일 없음` and `목록` work ✓ |
+| `HAN` twice, then `LOAD NOSUCH`, `목록` | the banner, `파일 없음`, the Korean catalog ✓ |
+| Saturn card: `INIT HELLO` | runs `HAN`, the disk is unchanged (as before) ✓ |
+
+**Limits.**
+- A program that catches an `INIT` error with `ONERR GOTO` gets no message, so DOS stays stock (English messages, no Korean command names) until the next DOS message or the next `INIT`.
+- On a DOS that is not stock 3.3 at one of the patched places, the patch there was skipped, but the swap still writes the stock byte while `INIT` runs, so that disk gets a stock byte there.
+- **Card space is now almost gone on the plain card:** 6 bytes in the free block, 1 byte in the command-name area.

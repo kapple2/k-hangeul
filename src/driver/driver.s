@@ -127,15 +127,13 @@ Loader:
 @patch1:
         lda  VecData,x              ; reset, NMI and IRQ vectors into $FFFA-$FFFF
         sta  $FFFA,x
-        lda  DosPatch1,x            ; "sta $C080 / jmp INIT" into DOS at $A55B
-        sta  $A55B,x
         dex
         bpl  @patch1
         ldx  #$02
 @patch2:
         lda  DosPatch2,x            ; "HAN", a command name in DOS's table at $A8F1
         sta  $A8F1,x
-        lda  DosPatch3,x            ; at $A59E: bne $A55B, so the command HAN runs DosPatch1
+        lda  DosPatch3,x            ; at $A59E (the handler of INT, which HAN replaces): jmp HANMAIN. DOS's INIT code is left
         sta  $A59E,x
         dex
         bpl  @patch2
@@ -145,14 +143,12 @@ Loader:
         lda  LCRAMRW                ; $C083 twice: language card RAM read and write; INIT write protects it
         lda  LCRAMRW
         jmp  INIT
-DosPatch1:                          ; copied into DOS: jmp HANMAIN (the HAN command), padded with NOPs
-        .byte $4C,<HANMAIN,>HANMAIN,$EA,$EA,$EA
 VecData:
         .byte $FB,$03,$5F,$FA,$38,$FA
 DosPatch2:
         .byte $48,$41,$CE
-DosPatch3:
-        .byte $D0,$BB,$20
+DosPatch3:                          ; (as it is: the plain card guards INIT, see KINITC; the Saturn card makes INIT run HAN)
+        .byte $4C,<HANMAIN,>HANMAIN
 
 ; copy X + 256 * ($FF - 1) bytes from ($06) to ($08)
 CopyBytes:
@@ -292,7 +288,9 @@ ApplyList:
 @n2:    jmp  @next
 SatFinish:
         lda  SatSelByte
-        beq  @r
+        bne  @sf
+        jmp  @r
+@sf:
         lda  #<__SATDATA_LOAD__
         sta  $EB
         lda  #>__SATDATA_LOAD__
@@ -339,9 +337,13 @@ SatFinish:
         lda  #$01                   ; the start-up banner is still to be shown
         sta  SATBANOK
         lda  #<SATHAN               ; the HAN command: DOS jumps to its entry in the $9400 block
-        sta  $A55C
-        lda  #>SATHAN
+        sta  $A59F
+        sta  $A55C                  ; and INIT stays the HAN command on Saturn (jmp SATHAN at $A55B): the INIT guard that
+        lda  #>SATHAN               ; puts stock DOS back while INIT writes a disk is plain-card only for now
+        sta  $A5A0
         sta  $A55D
+        lda  #$4C
+        sta  $A55B
         lda  SatSelByte
         sta  SATSELV
         ldx  #$03
@@ -1005,6 +1007,7 @@ SatReinitEntry:
 ; Message 0 is CR, bell, CR; messages 2 and 3 are both RANGE ERROR. The English text stays in DOS.
 ; ---------------------------------------------------------------------------
 KMSGC:                          ; entered from KSTUB with the card on; X = message number; the stack top is the caller's return
+        jsr  KBACKC                 ; INIT failed (the INIT guard): the patches again
         lda  CSWH
         cmp  #$94                   ; DOS's output is not the driver's (PR#n): leave the English text
         beq  @k
@@ -1067,12 +1070,7 @@ KPATCH:
         sta  $A04F
 @z:     lda  $A000                  ; the Korean command names: DOS's code for a line it does not know starts at $A000 with
         cmp  #$AD                   ; lda $0200  (AD 00 02); it becomes  jmp KALS
-        bne  @h
-        lda  $A001
-        bne  @h
-        lda  $A002
-        cmp  #$02
-        bne  @h
+        bne  @h                     ; (the first byte is enough: lda abs at the start of the line code)
         lda  #$4C
         sta  $A000
         lda  #<KALS
@@ -1085,9 +1083,6 @@ KPATCH:
         lda  $B3AF                  ; the text as stock DOS 3.3 has it
         cmp  #$A0
         bne  @x
-        lda  $B3BA
-        cmp  #$C4
-        bne  @x
         lda  #$08                   ; print 9 bytes, not 12: the Korean for "volume" and a space need no more
         sta  $ADAF
         ldx  #$08
@@ -1095,11 +1090,96 @@ KPATCH:
         sta  $B3AF,x
         dex
         bpl  @c
-@x:     jmp  STATEINIT
+@x:     lda  $9D1F                  ; the INIT guard: DOS's handler table entry for INIT (address - 1, $A54E)
+        cmp  #$A5
+        bne  @y                     ; not stock, or already the guard (HAN again; the guard's is $BC): leave it
+        ldx  #KDOSSZ-1              ; the guard's stubs go into DOS's unused bytes $BCDF-$BCFF, if they are all zero
+@q:     lda  KDOSA,x
+        bne  @no
+        dex
+        bpl  @q
+        ldx  #KDOSSZ-1
+@r:     lda  KDOSB,x
+        sta  KDOSA,x
+        dex
+        bpl  @r
+        lda  #<(KINITS-1)
+        sta  $9D1E
+        lda  #>(KINITS-1)
+        sta  $9D1F
+        lda  $A702                  ; the message routine goes through KSTUBD, which a new disk also gets
+        cmp  #$4C
+        bne  @y
+        lda  #<KSTUBD
+        sta  $A703
+        lda  #>KSTUBD
+        sta  $A704
+@y:     jmp  STATEINIT
+@no:    lda  #$4C                   ; no room for the guard: INIT must not write a patched DOS to a disk, so it runs HAN,
+        sta  $A55B                  ; as it always did before
+        lda  #<HANMAIN
+        sta  $A55C
+        lda  #>HANMAIN
+        sta  $A55D
+        jmp  STATEINIT
 ; $B3AF-$B3B7: "볼륨 " (Hangul keystroke text: Ctrl-K, Q H F F B A, Ctrl-A, space), stored backwards as DOS prints it. It is
 ; written only when the driver was loaded, so DOS prints the English header without it. There is no room for "디스크 볼륨"
 ; (17 bytes); the English header is 12 bytes and the bytes after it hold other DOS data.
 KHDR:   .byte $A0,$81,$C1,$C2,$C6,$C6,$C8,$D1,$8B
+
+; ---------------------------------------------------------------------------
+; The INIT guard (report section 9). DOS's INIT writes the DOS in memory to the new disk, with the driver's patches, which jump
+; into the driver: such a disk would crash when it boots without it. INIT now goes to KINITS (in DOS's unused bytes $BCDF), then
+; to KINITC: KSWAP exchanges every patched byte with the stock byte kept in KSWT, so DOS is stock while INIT runs. INIT's handler
+; returns to KPOST, which swaps back. If INIT fails, DOS prints its error message instead: the message routine ($A702) is not
+; swapped; it jumps to KSTUBD, which is in $BCDF too and so is on the new disk as well. KSTUBD goes to the driver only while
+; DOS's output is the driver's ($37 = $94, otherwise DOS's own English text: so the new disk works without the driver), and the
+; driver's message code swaps back first (KBACKC). KSWF = KSWON says that DOS is stock now.
+; ---------------------------------------------------------------------------
+KSWON = $5A                         ; KSWF = KSWON: DOS is stock now (any other value: the patches are in)
+KDOSA = $BCDF                       ; DOS 3.3 does not use $BCDF-$BCFF
+KINITS = KDOSA                      ; the offsets below are fixed: see KDOSB
+KPOST = KDOSA + 6
+KSTUBD = KDOSA + 16
+KDOSB:                              ; copied to KDOSA
+        .byte $2C,<LCRAMRD,>LCRAMRD, $4C,<KINITC,>KINITC          ; KINITS: bit LCRAMRD / jmp KINITC
+        .byte $2C,<LCRAMRD,>LCRAMRD, $20,<KBACKC,>KBACKC, $2C,<LCROMRD,>LCROMRD, $60   ; KPOST: card on, KBACKC, card off, rts
+        .byte $A5,$37, $C9,$94, $D0,$03, $4C,<KSTUB,>KSTUB         ; KSTUBD: lda $37 / cmp #$94 / bne + / jmp KSTUB
+        .byte $BD,$3F,$AA, $4C,$05,$A7                             ;      +: lda $AA3F,x / jmp $A705 (what DOS's routine did)
+KDOSSZ = * - KDOSB
+.assert KDOSSZ <= 33, error, "the INIT guard stubs do not fit in $BCDF-$BCFF"
+; exchange each patched range of DOS with KSWT (the card is made writable for it). Entries never cross a page.
+KSWAP:  bit  LCRAMRW
+        bit  LCRAMRW
+        ldx  #0
+@e:     ldy  KSWT+2,x               ; the length; 0 ends the table
+        beq  @d
+        lda  KSWT,x
+        sta  @m+1
+        sta  @w+1
+        lda  KSWT+1,x
+        sta  @m+2
+        sta  @w+2
+        inx
+        inx
+        inx
+@l:     lda  KSWT,x
+        pha
+@m:     lda  $FFFF                  ; operand set above
+        sta  KSWT,x
+        pla
+@w:     sta  $FFFF
+        inc  @m+1
+        inc  @w+1
+        inx
+        dey
+        bne  @l
+        beq  @e
+@d:     lda  KSWF                   ; stock <-> patched (the flag is in the card, so STATEINIT does not reset it)
+        eor  #KSWON
+        sta  KSWF
+        bit  LCRAMRD                ; RAM read, write protected again
+        rts
 KMSGK2 = 14                    ; the first message number whose text is in the second table
 KOFF:                           ; start of the Korean text of message 0..15, in KSTR1 or (from KMSGK2 on) KSTR2
         .byte $00,$04,$24,$24,$34,$47,$56,$68,$81,$94,$AB,$BC,$CC,$DB,$00,$1B
@@ -2016,6 +2096,49 @@ KHASH:
         .word $F998                  ; 25 BLOAD 이진불러오기
         .word $0FD9                  ; 26 BRUN 이진가동
         .word $0917                  ; 27 VERIFY 검사
+KINITC:                             ; DOS's INIT handler with the card on: make DOS stock, then go on at DOS's INIT ($A54F)
+        jsr  KBACKC                 ; (if a failed INIT was never followed by a message, DOS is stock already: patch it first)
+        jsr  KSWAP
+        lda  #>(KPOST-1)            ; INIT's handler returns to KPOST (DOS's next step after it is a jmp: no flags needed)
+        pha
+        lda  #<(KPOST-1)
+        pha
+        lda  #$A5
+        pha
+        lda  #$4E
+        pha
+        jmp  KEXIT
+; from KPOST, KINITC or the message code, with the card on: if DOS is stock (INIT ran), swap the patches back. A, X, Y and the flags
+; are kept.
+KBACKC: php
+        pha
+        txa
+        pha
+        tya
+        pha
+        lda  KSWF
+        cmp  #KSWON
+        bne  @x
+        jsr  KSWAP
+@x:     pla
+        tay
+        pla
+        tax
+        pla
+        plp
+        rts
+; address, length, then the bytes that are not in DOS now (stock bytes while the patches are in; the patches while INIT runs)
+KSWT:   .byte <$A000,>$A000,3, $AD,$00,$02          ; the command names
+        .byte <$A04E,>$A04E,2, $00,$A0              ; file names
+        .byte <$A59E,>$A59E,3, $A9,$20,$20          ; HAN in the slot of INT
+        .byte <$A8F1,>$A8F1,3, $49,$4E,$D4          ; its name, "INT"
+        .byte <$ADA3,>$ADA3,5, $A9,$16,$8D,$9D,$B3  ; CATALOG: CATINIT
+        .byte <$ADAF,>$ADAF,1, $0B                  ; CATALOG header length
+        .byte <$AE3A,>$AE3A,4, $0C,$FD,$A9,$15      ; CATALOG: CATWAIT and the page length
+        .byte <$B3B0,>$B3B0,8, $C5,$CD,$D5,$CC,$CF,$D6,$A0,$CB   ; CATALOG header text
+        .byte <$9D1E,>$9D1E,2, $4E,$A5              ; INIT's handler (the guard)
+        .byte 0,0,0
+KSWF:   .byte 0                     ; KSWON while DOS is stock (INIT is running)
 KALEND:
 .assert KALEND - ENGFONT <= 512, error, "the Korean command code does not fit in the unused glyphs"
         .res 2048-(KALEND-ENGFONT)
