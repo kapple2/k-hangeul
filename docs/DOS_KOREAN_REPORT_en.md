@@ -565,7 +565,7 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 9. Korean messages, header, Hangul-first file names and Korean command names on the Saturn card.
    - **Limits of the command names:** (a) a Hangul word that is not a name but has the same 16-bit hash as one would be taken as that command (about 25 in 65,536). (b) After a name, a Hangul file name typed in the same run must start with a jamo or tense key; a name that starts with a digit or a sign is taken as English arguments. (c) The comma problem (5.4) still applies to a Hangul file name followed by a comma. (d) The test harness drops keys while typing Hangul fast (after `NEW` especially); those runs were repeated with slower typing, and are not driver faults.
    - **Space left (before 9.4; see 9.4 for now):** the card's free block had 166 bytes (from `$D35A`); the command-name area has 107 of 512 bytes (91 below glyph 31); main RAM `$1CC0-$1FEF` has 11 bytes.
-10. Rebuilding the distribution disk `disk/K-HANGEUL.DSK`, and a review of the message wording (the translations are the 4.2 draft as it was).
+10. A review of the message wording (the translations are the 4.2 draft as it was). The distribution disk `disk/K-HANGEUL.DSK` has been rebuilt with the driver of section 9.5 (commit `5b11c24`); booted in MAME on a 16K card (`파일 없음`, `목록,D1`) and on a Saturn card (`RUN DEMO`).
 
 ### 9.4 INIT (`포맷`) and the INIT guard (plain card)
 
