@@ -624,3 +624,7 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 **Not tested yet.** `PR#0` on a Saturn card (the text page after `PR#0` was hard to read in the test); a 64K Saturn card (by design DOS stays English there).
 
 **Space left on Saturn:** bank 7 free block 1 byte; DOS `$BCFB-$BCFF` 5 bytes; `$95AC-$95AD` 2 bytes; bank 6 page 1 about 3.3 KB.
+
+### 9.6 Message wording (user decision, 2026-11-03)
+
+The user marked the wanted text of each message in the 4.2 table. Changed from what was built: no. 1 `LANGUAGE NOT AVAILABLE` is `언어 없음` (was `언어를 쓸 수 없음`), no. 4 `END OF DATA` is `자료 끝` (was `데이터 끝`), no. 5 `FILE NOT FOUND` is `파일을 찾을 수 없음` (was `파일 없음`). The other eleven and the header `볼륨` stay. The texts together grow by 1 byte (17 + 12 + 34 bytes instead of 31 + 14 + 17): the 16K card's free block has 5 bytes left now. Checked in MAME on a 16K card and on a Saturn card: `LOAD NOSUCH` and `불러오기 NOSUCH` print `파일을 찾을 수 없음`, reading `SAMPLE1` past its end prints `자료 끝`. No. 1 still cannot be provoked (section 9.3). The test results in 9.2-9.5 show `파일 없음` and `데이터 끝` because they were made before this change.

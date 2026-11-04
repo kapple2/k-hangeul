@@ -32,14 +32,14 @@ KMSGC:                          ; entered from KSTUB with the card on; X = messa
 
 KMSGK2 = 14                    ; the first message number whose text is in the second table
 KOFF:                           ; start of the Korean text of message 0..15, in KSTR1 or (from KMSGK2 on) KSTR2
-        .byte $00,$04,$24,$24,$34,$47,$56,$68,$81,$94,$AB,$BC,$CC,$DB,$00,$1B
+        .byte $00,$04,$16,$16,$26,$39,$46,$69,$82,$95,$AC,$BD,$CD,$DC,$00,$1B
 KSTR1:
         .byte $8D,$87,$8D,$00   ; 0 CR BELL CR: (CR, bell, CR)
-        .byte $8B,$C4,$CA,$D3,$C4,$CA,$C6,$CD,$C6,$81,$A0,$8B,$BC,$CD,$C6,$81,$A0,$8B,$D4,$CE,$81,$A0,$8B,$C4,$CA,$D1,$D4,$C4,$CD,$C1,$81,$00   ; 1 LANGUAGE NOT AVAILABLE: 언어를 쓸 수 없음
+        .byte $8B,$C4,$CA,$D3,$C4,$CA,$81,$A0,$8B,$C4,$CA,$D1,$D4,$C4,$CD,$C1,$81,$00   ; 1 LANGUAGE NOT AVAILABLE: 언어 없음
         .byte $8B,$D1,$CA,$C1,$C4,$CE,$CC,$81,$A0,$8B,$C4,$C8,$C6,$C2,$81,$00   ; 2 RANGE ERROR: 범위 오류
         .byte $8B,$BC,$CD,$D2,$CC,$81,$A0,$8B,$D2,$CD,$C1,$D7,$CC,$C5,$C8,$CC,$C1,$81,$00   ; 4 WRITE PROTECTED: 쓰기 금지됨
-        .byte $8B,$C5,$D0,$C4,$CC,$D8,$CA,$81,$A0,$8B,$AD,$CD,$D8,$81,$00   ; 5 END OF DATA: 데이터 끝
-        .byte $8B,$D6,$CB,$C4,$CC,$C6,$81,$A0,$8B,$C4,$CA,$D1,$D4,$C4,$CD,$C1,$81,$00   ; 6 FILE NOT FOUND: 파일 없음
+        .byte $8B,$D7,$CB,$C6,$D9,$81,$A0,$8B,$AD,$CD,$D8,$81,$00   ; 5 END OF DATA: 자료 끝
+        .byte $8B,$D6,$CB,$C4,$CC,$C6,$C4,$CD,$C6,$81,$A0,$8B,$C3,$CB,$D7,$C4,$CD,$C6,$81,$A0,$8B,$D4,$CE,$81,$A0,$8B,$C4,$CA,$D1,$D4,$C4,$CD,$C1,$81,$00   ; 6 FILE NOT FOUND: 파일을 찾을 수 없음
         .byte $8B,$D1,$C8,$C6,$C6,$C2,$C1,$81,$A0,$8B,$D1,$CA,$D3,$C7,$C8,$81,$A0,$8B,$C5,$CB,$C6,$CD,$C1,$81,$00   ; 7 VOLUME MISMATCH: 볼륨 번호 다름
         .byte $8B,$C4,$CC,$D1,$C3,$CE,$C6,$C6,$D5,$D2,$81,$A0,$8B,$C4,$C8,$C6,$C2,$81,$00   ; 8 I/O ERROR: 입출력 오류
         .byte $8B,$C5,$CC,$D4,$CD,$DA,$CD,$81,$A0,$8B,$D2,$CB,$C5,$CD,$D2,$81,$A0,$8B,$C3,$CB,$C1,$81,$00   ; 9 DISK FULL: 디스크 가득 참

@@ -267,11 +267,11 @@ K-HANGEUL을 올린 동안 DOS 3.3이 한글로 말합니다. 16K 랭귀지 카�
 
 | DOS | 한글 | DOS | 한글 |
 |---|---|---|---|
-| `LANGUAGE NOT AVAILABLE` | 언어를 쓸 수 없음 | `FILE LOCKED` | 파일 잠김 |
+| `LANGUAGE NOT AVAILABLE` | 언어 없음 | `FILE LOCKED` | 파일 잠김 |
 | `RANGE ERROR` | 범위 오류 | `SYNTAX ERROR` | 문법 오류 |
 | `WRITE PROTECTED` | 쓰기 금지됨 | `NO BUFFERS AVAILABLE` | 버퍼 부족 |
-| `END OF DATA` | 데이터 끝 | `FILE TYPE MISMATCH` | 파일 종류 다름 |
-| `FILE NOT FOUND` | 파일 없음 | `PROGRAM TOO LARGE` | 프로그램이 너무 큼 |
+| `END OF DATA` | 자료 끝 | `FILE TYPE MISMATCH` | 파일 종류 다름 |
+| `FILE NOT FOUND` | 파일을 찾을 수 없음 | `PROGRAM TOO LARGE` | 프로그램이 너무 큼 |
 | `VOLUME MISMATCH` | 볼륨 번호 다름 | `NOT DIRECT COMMAND` | 직접 명령 아님 |
 | `I/O ERROR` | 입출력 오류 | `DISK VOLUME` (CATALOG) | 볼륨 |
 | `DISK FULL` | 디스크 가득 참 | | |
