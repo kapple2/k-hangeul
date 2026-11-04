@@ -2349,7 +2349,7 @@ L_E5CE:
         rts                         ; E5E3  60
         clc                         ; E5E4  18
 D_E5E5:
-        bcs  L_E61E+1               ; E5E5  B0 38
+        .byte $B0,$38               ; E5E5  (data, read as bytes; it was written as  bcs L_E61E+1, which changes when code before it moves)
         ror  HMODE                  ; E5E7  6E AC 94
         rts                         ; E5EA  60
         jsr  L_EC93                 ; E5EB  20 93 EC
@@ -2381,8 +2381,6 @@ L_E610:
         dex                         ; E616  CA
         bpl  L_E610                 ; E617  10 F7
         jsr  SAVECLR                ; E619  20 48 D6
-        nop                         ; E61C  EA
-        nop                         ; E61D  EA
 L_E61E:
         sta  S_0665                 ; E61E  8D 92 94
         sta  S_0664                 ; E621  8D 91 94
@@ -2483,8 +2481,6 @@ L_E6C0:
         lda  #$00                   ; E6C7  A9 00
         sta  S_04D7                 ; E6C9  8D 2F 94
         jsr  CLOSERUN               ; was lda #$8D / sta INBUF,x: close an open Hangul run, then the CR
-        nop
-        nop
         stx  S_066C                 ; E6D1  8E 99 94
         clc                         ; E6D4  18
         rts                         ; E6D5  60
@@ -2504,6 +2500,8 @@ L_E6ED:
         bpl  L_E715                 ; E6F0  10 23
         cmp  #$A1                   ; E6F2  C9 A1
         bcc  L_E715                 ; E6F4  90 1F
+        cmp  #$AC                   ; a comma closes an open Hangul run too (4 bytes, paid by the 4 NOPs removed from this routine):
+        beq  L_E70C                 ; BSAVE B<Hangul>,A768 then has the Ctrl-A before the comma, where DOS ends the name
         cmp  #$E1                   ; E6F6  C9 E1
         bcc  L_E6FC                 ; E6F8  90 02
         eor  #$20                   ; E6FA  49 20

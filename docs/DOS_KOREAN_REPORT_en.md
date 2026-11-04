@@ -191,7 +191,7 @@ DOS booted from a copy of `disk\K-HANGEUL.DSK` (plain 16 KB card), commands type
 
 Not verified: `LOCK` / `UNLOCK` and `RENAME` with a Hangul first name (the same comma problem hit my test lines); the text-file commands (`OPEN`, `READ`, `WRITE`) and `BLOAD`; what `CATALOG` looks like for a name saved without its Ctrl-A (the driver may keep its Hangul run open into the next columns); the Saturn card and IIe and later machines.
 
-### 5.4 The comma problem
+### 5.4 The comma problem (fixed, see 9.7)
 
 The driver's line editor does **not** write the closing Ctrl-A (`$81`) into the line right away. It writes it just before the next **letter**, or at Return (code at `CLOSERUN` and `L_E70C` in `driver.s`). A comma, a space or a digit does not trigger it. So `BSAVE B` Ctrl-K `GKS` Ctrl-A `,A768,L4` ends up in the line as `B`, `$8B`, `GKS`, `,`, `$81`, `A768,L4`. DOS ends the name at the comma and then reads the stray `$81` at the start of the option field: syntax error. The same happens with any command that has something after a Hangul name on the line.
 
@@ -628,3 +628,20 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 ### 9.6 Message wording (user decision, 2026-11-03)
 
 The user marked the wanted text of each message in the 4.2 table. Changed from what was built: no. 1 `LANGUAGE NOT AVAILABLE` is `언어 없음` (was `언어를 쓸 수 없음`), no. 4 `END OF DATA` is `자료 끝` (was `데이터 끝`), no. 5 `FILE NOT FOUND` is `파일을 찾을 수 없음` (was `파일 없음`). The other eleven and the header `볼륨` stay. The texts together grow by 1 byte (17 + 12 + 34 bytes instead of 31 + 14 + 17): the 16K card's free block has 5 bytes left now. Checked in MAME on a 16K card and on a Saturn card: `LOAD NOSUCH` and `불러오기 NOSUCH` print `파일을 찾을 수 없음`, reading `SAMPLE1` past its end prints `자료 끝`. No. 1 still cannot be provoked (section 9.3). The test results in 9.2-9.5 show `파일 없음` and `데이터 끝` because they were made before this change.
+
+### 9.7 The comma fix in the line editor (approved earlier; done)
+
+**Change.** In `FETCHLINE` (`L_E6D6`..), when a Hangul run is open and the character is a comma, the closing Ctrl-A (`$81`) is written first (`cmp #$AC` / `beq L_E70C`, 4 bytes). So `BSAVE B` Ctrl-K `GKS` `,A$300,L4` reaches DOS as `B`, `$8B`, `GKS`, `$81`, `,A$300,L4`: DOS ends the name at the comma and the options are clean. It is the stock editor code, shared by the 16K and Saturn builds.
+
+**Where the 4 bytes came from.** The image is full up to the vectors, so the same routine gave up 4 NOPs (2 after `jsr SAVECLR`, 2 after `jsr CLOSERUN`); nothing after `L_E715` moved. One thing needed care: `D_E5E5` is data that the old source wrote as `bcs L_E61E+1` (the assembler computes `$38`, the distance to a label); moving code before it changed that byte and broke Hangul typing at first. It is now written as `.byte $B0,$38`.
+
+**Tests in MAME (16K and Saturn).**
+
+| Test | Result |
+|---|---|
+| `BSAVE B한,A$300,L4`, `BLOAD B한,A$300` | saved and loaded (before: `?SYNTAX ERROR`) ✓ |
+| `목록,D1` | the Korean header and the list ✓ |
+| `이름바꿈 ` Ctrl-A `B한,B글` (`RENAME`), then `LOAD B글` | renamed and loaded ✓ |
+| `20 DATA 한,글` and `10 PRINT "한, 글, ABC, 123"`, `RUN`, `LIST` | prints and lists the same as the build before; the screen is the same (10 hi-res bytes differ: the cursor) ✓ |
+
+**Limits.** (a) A string or `DATA` item typed in Hangul with a comma is stored as separate runs: 2 bytes more per comma (`LEN`). (b) A comma inside Hangul text typed in the middle of a run closes the run; the next Hangul letter opens a new one with Ctrl-K automatically. (c) Section 5.5's other limits are unchanged. (d) A program that compares an answer with a string that has a comma must have the same runs (type it the same way).

@@ -278,7 +278,7 @@ How to type them:
 **`포맷` / `INIT`** (16K card) formats a disk and saves the program in memory on it, as in plain DOS 3.3. The new disk gets plain DOS 3.3, so it also boots on a machine without K-HANGEUL; to use Hangul on it, copy the files as in section 9.
 
 **Limits:**
-- A comma right after a Hangul file name does not work (`BSAVE 한글,A$300,L4` gives a syntax error). Put the Hangul name last, or save with an English name and then `RENAME` it to the Hangul name.
+- A comma now ends a Hangul run (the line editor puts the closing Ctrl-A in front of it), so a Hangul file name can be followed by a comma: `BSAVE B한,A$300,L4`, `RENAME 한글,글한`, `목록,D1`. The side effect: Hangul text typed with commas (in a `PRINT` string, in `DATA`) is stored as several runs, two bytes longer for each comma (`LEN` counts them); it looks and prints the same.
 - If a Hangul file name typed right after a Korean command name starts with a digit or a sign, it is taken as English. Start it with a Hangul letter, or press Ctrl-A and type an English name.
 - A Hangul word that is not a command name, typed as the first word, gives `?SYNTAX ERROR` as before. Very rarely (about 1 word in 2,600) such a word is taken for a command, because the driver recognises the names by a short code.
 - After `PR#0` (driver off) the messages are English again, but the `CATALOG` header shows key letters (`QHFFBA 254`). Type `HAN`.

@@ -10,6 +10,7 @@ To raise the version, write a new entry at the top of this file and change the v
 - Korean DOS on a 16K language card: Korean error messages and `CATALOG` header, file names that start with Hangul, Korean names for 25 DOS commands (`PR#`, `IN#`, `FP` stay English). See `docs/MANUAL_en.md` section 8.
 - The same Korean DOS on a 128K Saturn card (code in bank 6, `$D000` page 1).
 - `INIT` formats a disk again while the driver is loaded on a 16K card (since Hangeul2 it restarted the driver instead), and the new disk gets stock DOS 3.3. On a Saturn card `INIT` still restarts the driver.
+- A comma ends a Hangul run in the line editor, so a Hangul file name can be followed by a comma (`BSAVE B한,A$300,L4`).
 - The empty glyphs of control codes 0-31 in the English font area are used for code (16K card build).
 
 ## 1.1b
