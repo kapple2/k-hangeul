@@ -2,10 +2,10 @@
 
 > 한국어: [CHANGELOG.md](CHANGELOG.md)
 
-The version number is written in one place only, the `VERSION` file at the top of the repository. The build takes the `v1.1b` text of the start-up banner from it.
+The version number is written in one place only, the `VERSION` file at the top of the repository. The build takes the `v1.2b` text of the start-up banner from it.
 To raise the version, write a new entry at the top of this file and change the version text in the user manual (`docs/MANUAL.md`, `docs/MANUAL_en.md`) too.
 
-## Not released yet (branch `dos-korean`; the version stays 1.1b until it is raised)
+## 1.2b (branch `saturn`)
 
 - Korean DOS on a 16K language card: Korean error messages and `CATALOG` header, file names that start with Hangul, Korean names for 25 DOS commands (`PR#`, `IN#`, `FP` stay English). See `docs/MANUAL_en.md` section 8.
 - The same Korean DOS on a 128K Saturn card (code in bank 6, `$D000` page 1).

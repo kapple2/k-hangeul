@@ -1,4 +1,4 @@
-# K-HANGEUL (캐플한글) v1.1b user manual
+# K-HANGEUL (캐플한글) v1.2b user manual
 
 > 한국어: [MANUAL.md](MANUAL.md)
 
@@ -48,7 +48,7 @@
 
 ## 4. Getting started
 
-Put the disk in drive 1 and switch on. The screen shows `캐플한글 v1.1b 2026년 (한글2 수정버전)`, the free memory and the `]` prompt.
+Put the disk in drive 1 and switch on. The screen shows `캐플한글 v1.2b 2026년 (한글2 수정버전)`, the free memory and the `]` prompt.
 
 > Starting the driver clears the BASIC program in memory (like `NEW`). Load your program after booting.
 

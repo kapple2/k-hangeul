@@ -2,10 +2,10 @@
 
 > English version: [CHANGELOG_en.md](CHANGELOG_en.md)
 
-버전 번호는 저장소 맨 위의 `VERSION` 파일 한 곳에만 적습니다. 빌드가 시작 화면의 `v1.1b` 글자를 이 파일에서 가져옵니다.
+버전 번호는 저장소 맨 위의 `VERSION` 파일 한 곳에만 적습니다. 빌드가 시작 화면의 `v1.2b` 글자를 이 파일에서 가져옵니다.
 버전을 올릴 때는 이 파일 맨 위에 새 항목을 쓰고, 사용 설명서(`docs/MANUAL.md`, `docs/MANUAL_en.md`)의 버전 글자도 바꿉니다.
 
-## 아직 내지 않음 (브랜치 `dos-korean`, 버전은 올릴 때까지 1.1b)
+## 1.2b (브랜치 `saturn`)
 
 - 16K 랭귀지 카드에서 한글 DOS: 한글 오류 메시지와 `CATALOG` 머리글, 한글로 시작하는 파일 이름, DOS 명령 25개의 한글 이름(`PR#`, `IN#`, `FP`는 영어 그대로). `docs/MANUAL.md` 8절 참고.
 - 128K Saturn 카드에서도 같은 한글 DOS(코드는 뱅크 6의 `$D000` 첫 페이지).
