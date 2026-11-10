@@ -12,6 +12,9 @@ To raise the version, write a new entry at the top of this file and change the v
 - `INIT` formats a disk again while the driver is loaded on a 16K card (since Hangeul2 it restarted the driver instead), and the new disk gets stock DOS 3.3. On a Saturn card `INIT` still restarts the driver.
 - A comma ends a Hangul run in the line editor, so a Hangul file name can be followed by a comma (`BSAVE B한,A$300,L4`).
 - The empty glyphs of control codes 0-31 in the English font area are used for code (16K card build).
+- When `CATALOG` (`목록`) has paused at the end of a page, Ctrl-C ends the listing and returns to the `]` prompt (16K card and Saturn card).
+- Ctrl-Reset starts the Hangul driver again by itself (no `HAN` needed). The loader sets this up only if the reset vector (`$03F2`) is still DOS's own warm start. On a Saturn card the same six bytes are written into the unused `INT` handler of DOS (`$A5A1`).
+- Fixed: the loader stored the Apple IIe flag (`$1CBD`) inside the driver image *before* the image was copied into the card, which zeroed one byte of it (in the 16K build the last line of the INIT guard's table `KSWT`, the high byte of the stock INIT handler address). So a disk made by `INIT` carried a DOS whose INIT handler address pointed to `$004E` instead of `$A54E` (`$9D1F` was `$00` instead of `$A5`). It now stores after the copy, and `$9D1E-$9D1F` on a new disk equals stock DOS 3.3 (checked in MAME).
 
 ## 1.1b
 

@@ -104,13 +104,6 @@ Loader:
 .endif
         lda  LCROMWR                ; $C081 twice: language card RAM write enabled
         lda  LCROMWR
-        ldx  #$00                   ; the ROM is visible here: $FBB3 is $06 on a IIe, IIc and IIgs ($EA on a II Plus)
-        lda  $FBB3
-        cmp  #$06
-        bne  @notie
-        ldx  #$80
-@notie:
-        stx  SHMACHL                ; those machines have no readable Shift key: SHFIX uses Open-Apple there
         lda  #<__LCIMG_LOAD__
         sta  $06
         lda  #>__LCIMG_LOAD__
@@ -123,12 +116,47 @@ Loader:
         sta  $FF
         ldx  #<__LCIMG_SIZE__
         jsr  CopyBytes
+        ldx  #$00                   ; the ROM is visible here: $FBB3 is $06 on a IIe, IIc and IIgs ($EA on a II Plus)
+        lda  $FBB3                  ; (after the copy: $1CBD is inside the staged image, and storing there before zeroed a byte of
+        cmp  #$06                   ; it: the high byte of the stock INIT handler address in KSWT, or other code if the loader grows)
+        bne  @notie
+        ldx  #$80
+@notie:
+        stx  SHMACHL                ; those machines have no readable Shift key: SHFIX uses Open-Apple there
         ldx  #$05
 @patch1:
         lda  VecData,x              ; reset, NMI and IRQ vectors into $FFFA-$FFFF
         sta  $FFFA,x
         dex
         bpl  @patch1
+        lda  $03F2                  ; Ctrl-Reset goes to HANRST (start the driver again, then DOS's warm start), but only if the
+        cmp  #<$9DBF                ; reset vector is still DOS's own warm start: anything else is left alone
+        bne  @norst
+        lda  $03F3
+        cmp  #>$9DBF
+        bne  @norst
+        lda  #<HANRST
+        ldx  #>HANRST
+.if SATLOAD
+        ldy  SatSelByte
+        beq  @rst                   ; no Saturn card: HANRST is in the banner
+        lda  $A5A1                  ; Saturn: the same six bytes go into the unused INT code of DOS, if it is stock there
+        cmp  #$B2
+        bne  @norst
+        ldy  #$05
+@rstc:  lda  RstStub,y
+        sta  $A5A1,y
+        dey
+        bpl  @rstc
+        lda  #$A1
+        ldx  #$A5
+.endif
+@rst:   sta  $03F2
+        stx  $03F3
+        txa
+        eor  #$A5                   ; the power-up byte that makes the ROM take the vector
+        sta  $03F4
+@norst:
         ldx  #$02
 @patch2:
         lda  DosPatch2,x            ; "HAN", a command name in DOS's table at $A8F1
@@ -147,6 +175,8 @@ VecData:
         .byte $FB,$03,$5F,$FA,$38,$FA
 DosPatch2:
         .byte $48,$41,$CE
+RstStub:                            ; Saturn: jsr $A59E (HAN) / jmp $9DBF (DOS's warm start), written at $A5A1
+        .byte $20,$9E,$A5,$4C,$BF,$9D
 DosPatch3:                          ; (as it is: the plain card guards INIT, see KINITC; the Saturn card makes INIT run HAN)
         .byte $4C,<HANMAIN,>HANMAIN
 
@@ -983,7 +1013,7 @@ CatwaitB:                           ; CATWAIT: wait for a key while CATALOG page
         lda  #$00
         sta  NOPR
         pla
-        jmp  SatLeave1
+        jmp  SatCw                  ; Ctrl-C check (SatCw is in the padding of ENGPTR); it leaves with SatLeave1
 CatinitB:                           ; CATINIT: the CATALOG page length
         sec
         lda  WNDBTM
@@ -1835,7 +1865,14 @@ STATEINIT:
 ENGPTR:
 .if SATURN
         jmp  EngPtr10               ; P0 = P0 + A * 10 (the packed English font), in the padding of the driver page
-        .res 23, $EA
+SatCw:  cmp  #$83                   ; the end of CatwaitB: A is the key. Ctrl-C ends the CATALOG listing: SatLeave1's rts then goes
+        bne  @k                     ; to DOS's end of CATALOG ($AE2C) instead of back into the listing (the file manager
+        lda  #$AE                   ; restores its own stack pointer, so the return address left below needs no tidying)
+        pha
+        lda  #$2B
+        pha
+@k:     jmp  SatLeave1
+        .res 23-(*-SatCw), $EA
 .else
         sta  P2L
         lsr  a
@@ -6144,11 +6181,12 @@ CATWAIT:
         jsr  CATFIX
         CARDOFF_LDA                     ; $C082: back to ROM, as the stubs do
         jsr  L_FD0C                 ; 1F3B  20 0C FD
-        pha                         ; 1F3E  48
-        lda  #$00                   ; 1F3F  A9 00
-        sta  NOPR                   ; 1F41  8D FB 1F
-        pla                         ; 1F44  68
-        rts                         ; 1F45  60
+        ldy  #$00                   ; Y is free (the ROM's RDKEY uses it), A and X must stay
+        sty  NOPR
+        cmp  #$83                   ; Ctrl-C ends the listing: DOS's own end of CATALOG ($AE2C, jmp $B37F). The file manager
+        bne  @k                     ; leaves with its saved stack pointer ($B39B), so the stack needs no tidying
+        jmp  $AE2C
+@k:     rts
 .if SATURN
 CATINIT_B:
 .else
@@ -6239,6 +6277,16 @@ HANMAIN:
         CARDON                      ; $C080: language card RAM read
         jsr  STATEINIT
         rts
+; Ctrl-Reset: the ROM resets the hooks and the screen mode, then jumps through the vector at $03F2, which DOS keeps at its own
+; warm start ($9DBF). The loader points it here: start the driver again like the HAN command, then go on to DOS's warm start,
+; which puts DOS's hooks back and ends at the Applesoft prompt. The Saturn arrangement has no room in main RAM for this: the
+; loader writes the same six bytes into DOS's unused INT code ($A5A1).
+.if SATURN
+HANRST: .res 6
+.else
+HANRST: jsr  HANMAIN
+        jmp  $9DBF
+.endif
 
 ; Main RAM stubs (they are here because the card is off while DOS runs; each one switches the card on and jumps to its routine on
 ; the card, KMSGC, KFNC or KAL, which pushes the address to go on at and jumps to KEXIT: it switches the card off and does the rts).

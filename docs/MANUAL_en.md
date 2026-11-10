@@ -228,7 +228,7 @@ They do what `TYPE` does, but instead of typing each letter they **draw a whole 
 - The third value (0 to 255, any number expression) is the **wait**. Without it the wait is 0: the row appears almost at once, so to see the effect give 5 or more. A row has 12 pixel rows, so a wait of 5 takes about 60 ms per row.
 - Lines wider than 46 columns are cut into rows of 46 columns, and every row has its own smooth effect.
 - `STYPE` reads the file the same way as `TYPE` (the drawing is as fast as `TYPE`'s); each row costs about 8 ms more (0.7 s on story part 1, measured in MAME), and the wait comes on top.
-- **Stopping**: press **Ctrl-C** while it prints and `TYPE`, `STYPE`, `TYPEC` and `STYPEC` all stop (`TYPEC` and `STYPEC` return to `FILE NAME`). Ctrl-S pauses (any key continues) and Ctrl-Reset breaks out (then `HAN`). In a BASIC loop such as `STORYT`, Ctrl-C stops only the file being printed and the loop goes on with the next one, so use Ctrl-Reset to stop the whole program.
+- **Stopping**: press **Ctrl-C** while it prints and `TYPE`, `STYPE`, `TYPEC` and `STYPEC` all stop (`TYPEC` and `STYPEC` return to `FILE NAME`). Ctrl-S pauses (any key continues) and Ctrl-Reset breaks out (the Hangul driver restarts by itself, section 10). In a BASIC loop such as `STORYT`, Ctrl-C stops only the file being printed and the loop goes on with the next one, so use Ctrl-Reset to stop the whole program.
 - `TYPE` and `STYPE` **cannot be loaded together**. `STYPE` uses about 3 KB of BASIC memory (`TYPE` 1.5 KB). Run `BRUN STYPE` at the start of the program.
 - `STYPEC` is the smooth `TYPEC`: `BRUN STYPEC`, then at `FILE NAME` type a name followed by a comma and the wait, such as `NALGAE1,5`. It overwrites the top 2.5 KB of BASIC memory, so use it at the `]` prompt with no program.
 - `RUN STYPEDEMO` and `RUN STORYS` on the disk are examples.
@@ -277,6 +277,8 @@ How to type them:
 
 **`포맷` / `INIT`** (16K card) formats a disk and saves the program in memory on it, as in plain DOS 3.3. The new disk gets plain DOS 3.3, so it also boots on a machine without K-HANGEUL; to use Hangul on it, copy the files as in section 9.
 
+**Stopping `CATALOG`.** When the listing has paused at the end of a page, **Ctrl-C** ends it and returns to the `]` prompt. Any other key shows the next page (the original DOS 3.3 went on listing for Ctrl-C too). It works on the 16K card and the Saturn card.
+
 **Limits:**
 - A comma now ends a Hangul run (the line editor puts the closing Ctrl-A in front of it), so a Hangul file name can be followed by a comma: `BSAVE B한,A$300,L4`, `RENAME 한글,글한`, `목록,D1`. The side effect: Hangul text typed with commas (in a `PRINT` string, in `DATA`) is stored as several runs, two bytes longer for each comma (`LEN` counts them); it looks and prints the same.
 - If a Hangul file name typed right after a Korean command name starts with a digit or a sign, it is taken as English. Start it with a Hangul letter, or press Ctrl-A and type an English name.
@@ -303,7 +305,7 @@ It needs standard 48K DOS 3.3. `BRUN K-HANGEUL` clears the BASIC program in memo
 
 ## 10. Good to know
 
-- **`HAN`**: if the driver is switched off by `PR#0` or `IN#0`, type `HAN` to switch it on again (the screen is cleared). The same works after Ctrl-Reset (checked with MAME's Ctrl-Reset key; not tried on a real machine).
+- **`HAN`**: if the driver is switched off by `PR#0` or `IN#0`, type `HAN` to switch it on again (the screen is cleared). **Ctrl-Reset** needs no `HAN`: the ROM puts the screen back in text mode, but the driver then runs `HAN` by itself and goes on to DOS's own restart, so the Hangul screen and the `]` prompt come back at once (on the 16K card the start-up banner is drawn again). The BASIC program is kept. This is set up only if DOS's reset vector is still DOS's own warm start. Checked with MAME's Ctrl-Reset key; not tried on a real machine.
 - **`HOME`** clears the Hangul screen. `CATALOG` pauses after each 16-row page.
 - **Do not use `HGR2`.** Applesoft's `HGR` and `HGR2` are in ROM and cannot be blocked. `HGR2` clears the memory where the BASIC program lives (`$4000–$5FFF`). **`HGR`** clears the Hangul screen and turns the bottom four rows into the text window. `TEXT` and `GR` also change the display mode. If you used one by mistake, try `HAN`: it sets the hi-res screen up again (not tested after `HGR`; a program that `HGR2` has cleared does not come back).
 - **Do not use `MAXFILES`** (`최대파일`): it removes the protection of the memory the driver uses.
