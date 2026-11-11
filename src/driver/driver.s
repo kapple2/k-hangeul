@@ -830,8 +830,7 @@ SatP5:                              ; at SATCATI: DOS calls this for CATINIT
 SatP5End:
 SatP6:                              ; at SATHAN: the HAN command (this code has to be in main RAM: BN's leave switches the card away)
         jsr  SatEnter
-        jsr  STATEINIT
-        rts
+        jmp  STATEINIT
 SatP6End:
 ; copy the pieces and set the BASIC state. INIT and HAN come here from inside the driver, so the depth is 1.
 SATCOPY:
@@ -898,9 +897,8 @@ EngPtr10:                           ; P0 = P0 + A * 10
         lda  #$00
         sta  P2H
         asl  P2L
-        rol  P2H                    ; 2A
+        rol  P2H                    ; 2A (carry is clear after the rol: the product fits in 16 bits)
         lda  P2L
-        clc
         adc  P0L
         sta  P0L
         lda  P2H
@@ -909,9 +907,8 @@ EngPtr10:                           ; P0 = P0 + A * 10
         asl  P2L
         rol  P2H
         asl  P2L
-        rol  P2H                    ; 8A
+        rol  P2H                    ; 8A (carry clear, as above)
         lda  P2L
-        clc
         adc  P0L
         sta  P0L
         lda  P2H
@@ -953,22 +950,21 @@ CHECK:
         lda  PROMPTCH               ; INPUT's prompt character is $80: its answer starts right after the text
         cmp  #$80                   ; BASIC printed, so draw no "]" (direct mode has $DD here)
         beq  CKX
+        lda  CHAR                   ; the last thing drawn was a typed character: this is a wrapped row of the
+        cmp  #$20                   ; line being typed, not a fresh prompt (there it is the CR, $0D)
+        bcs  CKX
         ldy  #$00                   ; 1EE8  A0 00
         lda  (BASL),y               ; 1EEA  B1 28
         and  #$7F                   ; 1EEC  29 7F
         cmp  #$21                   ; 1EEE  C9 21
         bcs  CKX                    ; 1EF0  B0 35
-        cmp  #$20                   ; 1EF2  C9 20
-        bne  CKN                    ; 1EF4  D0 06
-        lda  CH                     ; 1EF6  A5 24
-        bne  CKX                    ; 1EF8  D0 2D
-        beq  CKP                    ; 1EFA  F0 0A
-CKN:
-        lda  CH                     ; 1EFC  A5 24
-        cmp  #$02                   ; 1EFE  C9 02
-        bcs  CKX                    ; 1F00  B0 25
-        lda  #$00                   ; 1F02  A9 00
-        sta  CH                     ; 1F04  85 24
+        cmp  #$20                   ; carry set: the first cell is a space
+        lda  CH
+        beq  CKP                    ; column 0: draw the prompt
+        bcs  CKX                    ; a space and not column 0: nothing to draw
+        cmp  #$02                   ; a control code: only in column 1,
+        bcs  CKX
+        lsr  CH                     ; which becomes column 0
 CKP:
         lda  HMODE                  ; 1F06  AD AC 94
         pha                         ; 1F09  48
@@ -1000,7 +996,7 @@ WRAP:
         jsr  CHECK                  ; 1F30  20 E3 1E
         jmp  L_EB98                 ; 1F33  4C 98 EB
 SatChecksEnd:
-.assert SatChecksEnd - CHECK = 89, error, "the prompt routines changed size: change the .res in the banner"
+.assert SatChecksEnd - CHECK = 90, error, "the prompt routines changed size: change the .res in the banner"
 ; what DOS reaches through the stubs in the $9400 block: they enter the bank and jump to these, which leave with SatLeave1
 CatwaitB:                           ; CATWAIT: wait for a key while CATALOG pages (the stock code calls the ROM RDKEY, which ends in KEYREAD)
         lda  #$01
@@ -6041,8 +6037,8 @@ BNIB:
         adc  #$06                   ; 1E6B  69 06
 BN1:
         adc  #$30                   ; 1E6D  69 30
-        jsr  BEMIT                  ; 1E6F  20 2B 1D
-        rts                         ; 1E72  60
+        jmp  BEMIT                  ; 1E6F
+
 BFREE:
         sec                         ; 1E73  38
         lda  #$00                   ; 1E74  A9 00
@@ -6051,8 +6047,8 @@ BFREE:
         lda  #$94                   ; 1E7B  A9 94
         sbc  $6A                    ; 1E7D  E5 6A
         sta  NUMHI                  ; 1E7F  8D D9 1E
-        jsr  BDEC                   ; 1E82  20 99 1E
-        rts                         ; 1E85  60
+        jmp  BDEC                   ; 1E82
+
 BPAR:
         lda  #$20                   ; 1E86  A9 20
         jsr  BEMIT                  ; 1E88  20 2B 1D
@@ -6060,8 +6056,8 @@ BPAR:
         jsr  BEMIT                  ; 1E8D  20 2B 1D
         jsr  BDEC                   ; 1E90  20 99 1E
         lda  #$29                   ; 1E93  A9 29
-        jsr  BEMIT                  ; 1E95  20 2B 1D
-        rts                         ; 1E98  60
+        jmp  BEMIT                  ; 1E95
+
 BDEC:
         ldx  #$04                   ; 1E99  A2 04
 BDIVS:
@@ -6115,7 +6111,7 @@ HNIB:
 HOLD:
         .byte $00                   ; 1EE2
 .if SATURN
-        .res 89                     ; CHECK, DRAWPR and WRAP are in the bank (see SatChecks)
+        .res 90                     ; CHECK, DRAWPR and WRAP are in the bank (see SatChecks)
 .else
 CHECK:
         lda  NOPR                   ; 1EE3  AD FB 1F
@@ -6123,22 +6119,21 @@ CHECK:
         lda  PROMPTCH               ; INPUT's prompt character is $80: its answer starts right after the text
         cmp  #$80                   ; BASIC printed, so draw no "]" (direct mode has $DD here)
         beq  CKX
+        lda  CHAR                   ; the last thing drawn was a typed character: this is a wrapped row of the
+        cmp  #$20                   ; line being typed, not a fresh prompt (there it is the CR, $0D)
+        bcs  CKX
         ldy  #$00                   ; 1EE8  A0 00
         lda  (BASL),y               ; 1EEA  B1 28
         and  #$7F                   ; 1EEC  29 7F
         cmp  #$21                   ; 1EEE  C9 21
         bcs  CKX                    ; 1EF0  B0 35
-        cmp  #$20                   ; 1EF2  C9 20
-        bne  CKN                    ; 1EF4  D0 06
-        lda  CH                     ; 1EF6  A5 24
-        bne  CKX                    ; 1EF8  D0 2D
-        beq  CKP                    ; 1EFA  F0 0A
-CKN:
-        lda  CH                     ; 1EFC  A5 24
-        cmp  #$02                   ; 1EFE  C9 02
-        bcs  CKX                    ; 1F00  B0 25
-        lda  #$00                   ; 1F02  A9 00
-        sta  CH                     ; 1F04  85 24
+        cmp  #$20                   ; carry set: the first cell is a space
+        lda  CH
+        beq  CKP                    ; column 0: draw the prompt
+        bcs  CKX                    ; a space and not column 0: nothing to draw
+        cmp  #$02                   ; a control code: only in column 1,
+        bcs  CKX
+        lsr  CH                     ; which becomes column 0
 CKP:
         lda  HMODE                  ; 1F06  AD AC 94
         pha                         ; 1F09  48

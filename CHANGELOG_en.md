@@ -15,6 +15,7 @@ To raise the version, write a new entry at the top of this file and change the v
 - When `CATALOG` (`목록`) has paused at the end of a page, Ctrl-C ends the listing and returns to the `]` prompt (16K card and Saturn card).
 - Ctrl-Reset starts the Hangul driver again by itself (no `HAN` needed). The loader sets this up only if the reset vector (`$03F2`) is still DOS's own warm start. On a Saturn card the same six bytes are written into the unused `INT` handler of DOS (`$A5A1`).
 - Fixed: the loader stored the Apple IIe flag (`$1CBD`) inside the driver image *before* the image was copied into the card, which zeroed one byte of it (in the 16K build the last line of the INIT guard's table `KSWT`, the high byte of the stock INIT handler address). So a disk made by `INIT` carried a DOS whose INIT handler address pointed to `$004E` instead of `$A54E` (`$9D1F` was `$00` instead of `$A5`). It now stores after the copy, and `$9D1E-$9D1F` on a new disk equals stock DOS 3.3 (checked in MAME).
+- Fixed: when a typed line ran past the last column, the row it continued on got another `]` in its first cell. The driver now draws no `]` there when the last thing it drew was a typed character (16K card, Saturn card).
 
 ## 1.1b
 
