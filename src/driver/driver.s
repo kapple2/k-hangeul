@@ -755,7 +755,8 @@ SATSTATE = $95E2
 SATDEPTH = $9511                        ; one byte; the 15 bytes $9511-$951F are not used by the stock driver (arrays end at $9510)
 SATMODE  = $9512                        ; 8 bytes: the switch that sets the state (bits 5,4,3) of the caller
 SATR1    = $9521                        ; piece 1 runs here (40 bytes free: $9520 is read, never written, by the stock driver)
-SATR2    = $9599                        ; piece 2 (21 bytes free)
+SATR2    = $95CE                        ; piece 2 (14 bytes free: the key ring S_06D0 is 32 bytes, $95AE-$95CD). It was at $9599,
+                                        ; inside S_05D0 (41 bytes, one per column, written by the line editor): a backspace wiped it
 SATR3    = $95E3                        ; piece 3 (29 bytes free), right behind SATSTATE
 SatLeave1 = SATR1
 SatExit   = SATR2
@@ -880,7 +881,7 @@ SATCOPY:
         jmp  STOCKINIT
 .assert SatP0End-SatP0 <= 15, error, "Saturn piece 0 does not fit"
 .assert SatP1End-SatP1 <= 40, error, "Saturn piece 1 does not fit"
-.assert SatP2End-SatP2 <= 21, error, "Saturn piece 2 does not fit"
+.assert SatP2End-SatP2 <= 14, error, "Saturn piece 2 does not fit"
 .assert SatP3End-SatP3 <= 29, error, "Saturn piece 3 does not fit"
 .assert SatP4End-SatP4 <= 9, error, "Saturn piece 4 does not fit"
 .assert SatP5End-SatP5 <= 7, error, "Saturn piece 5 does not fit"
@@ -1039,7 +1040,7 @@ SatBanner:                          ; the end of STOCKINIT: the start-up banner,
 ;   K6MSG ($BCE9) DOS's message routine ($A702): K6IN, then K6::KMSGC
 ;   K6AL  ($BCEF) DOS's code for a line it does not know ($A000): K6IN, then K6::KAL
 ;   K6PUT ($BCF5) print A from bank 6: the driver's output entry $940A (which enters and leaves bank 7), then bank 6 again
-;   K6FN  ($95A6, free bytes of the $9400 block, made again by every SATCOPY) DOS's file name check ($A04D): K6IN, K6::KFNC
+;   K6FN  ($951A, free bytes of the $9400 block, made again by every SATCOPY) DOS's file name check ($A04D): K6IN, K6::KFNC
 ; INIT still runs HAN on a Saturn card (the loader writes jmp SATHAN at $A55B), so these patches never reach a new disk.
 ; ---------------------------------------------------------------------------
 K6IN  = $BCDF
@@ -1047,7 +1048,7 @@ K6SEL = K6IN + 3
 K6MSG = K6IN + 10
 K6AL  = K6IN + 16
 K6PUT = K6IN + 22
-K6FN  = $95A6
+K6FN  = $951A                           ; 6 bytes, $951A-$951F (it was at $95A6, inside S_05D0)
 .assert K6PUT = K6::KPUTC, error, "K6PUT moved"
 .assert SatLeave1 = K6::KX, error, "SatLeave1 moved"
 K6DB:   .byte $EE,<SATDEPTH,>SATDEPTH, $2C,$8E,$C0, $2C,$88,$C0, $60     ; K6IN: inc SATDEPTH / bit $C08E / bit $C088 / rts

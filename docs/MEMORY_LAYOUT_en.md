@@ -117,7 +117,7 @@ Saturn bank selects are write-only, and an Apple II+ cannot read back the state 
 
 ### Nested entries and the depth byte
 
-The driver calls its own input hook from inside itself (the line input), so entries nest. `SATDEPTH` (`$9511`) counts them. An inner leave only switches the ROM in and keeps the bank, as the stock stubs do. Only the outermost leave selects bank 0 and sets the caller's card state from `$95E2`. The end of the line input rewinds the stack and skips the outer leave, so it goes through a separate exit that sets the depth to 1 first. While the driver waits for a key inside a line input the count reads 2 (the line input rewinds the stack and so skips one leave); in the caller's domain it reads 0. When kScheme takes over the console it writes `SATDEPTH` = 0 together with `SATSTATE` = `$38`, and it writes 0 and `$08` when it gives the console back. Status: built and tested in MAME with `-sl0 ssram` (the driver in bank 7 gives the same text buffer and the same visible screen as the stock driver after boot, `PRINT`, and `CATALOG`). The bytes used inside `$9400–$95FF` are `$9511–$951F`, `$9521–$9547`, `$9599–$95A5` and `$95E2–$95F7`.
+The driver calls its own input hook from inside itself (the line input), so entries nest. `SATDEPTH` (`$9511`) counts them. An inner leave only switches the ROM in and keeps the bank, as the stock stubs do. Only the outermost leave selects bank 0 and sets the caller's card state from `$95E2`. The end of the line input rewinds the stack and skips the outer leave, so it goes through a separate exit that sets the depth to 1 first. While the driver waits for a key inside a line input the count reads 2 (the line input rewinds the stack and so skips one leave); in the caller's domain it reads 0. When kScheme takes over the console it writes `SATDEPTH` = 0 together with `SATSTATE` = `$38`, and it writes 0 and `$08` when it gives the console back. Status: built and tested in MAME with `-sl0 ssram` (the driver in bank 7 gives the same text buffer and the same visible screen as the stock driver after boot, `PRINT`, and `CATALOG`). The bytes used inside `$9400–$95FF` are `$9511–$951F`, `$9521–$9547`, `$95CE–$95DA` and `$95E2–$95F7`.
 
 ### What stays as it is
 
@@ -177,6 +177,6 @@ The addresses `$D3FA`, `$D3FD`, `$D3FE`, `$D3FF` and `$FFF5–$FFF8` do not move
 
 - Bank 6, `$D000` page 1, `$D000-$D300` (769 bytes): the Korean DOS code (segment `BANK6`), copied by the loader when the driver is in bank 7. kScheme leaves this page alone when K-HANGEUL is in bank 7.
 - DOS's unused bytes `$BCDF-$BCFA`: the stubs `K6IN`, `K6SEL`, `K6MSG`, `K6AL`, `K6PUT`.
-- `$95A6-$95AB` in the `$9400-$95FF` block: the stub `K6FN`, written by every `SATCOPY` (so the rebuild entry `$D3FA` makes it again).
+- `$951A-$951F` in the `$9400-$95FF` block: the stub `K6FN`, written by every `SATCOPY` (so the rebuild entry `$D3FA` makes it again).
 - Bank 7: `KPATCH6` and its data fill the free bytes before the shift masks (`$D316-$D3CF`).
 - Main RAM `$0800-$1FFF` is still not used on a Saturn card.

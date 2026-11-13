@@ -16,6 +16,7 @@ To raise the version, write a new entry at the top of this file and change the v
 - Ctrl-Reset starts the Hangul driver again by itself (no `HAN` needed). The loader sets this up only if the reset vector (`$03F2`) is still DOS's own warm start. On a Saturn card the same six bytes are written into the unused `INT` handler of DOS (`$A5A1`).
 - Fixed: the loader stored the Apple IIe flag (`$1CBD`) inside the driver image *before* the image was copied into the card, which zeroed one byte of it (in the 16K build the last line of the INIT guard's table `KSWT`, the high byte of the stock INIT handler address). So a disk made by `INIT` carried a DOS whose INIT handler address pointed to `$004E` instead of `$A54E` (`$9D1F` was `$00` instead of `$A5`). It now stores after the copy, and `$9D1E-$9D1F` on a new disk equals stock DOS 3.3 (checked in MAME).
 - Fixed: when a typed line ran past the last column, the row it continued on got another `]` in its first cell. The driver now draws no `]` there when the last thing it drew was a typed character (16K card, Saturn card).
+- Fixed (Saturn card, present since 1.1b): pressing the left arrow (backspace) while typing a line and then Return dropped into the monitor (`*`). Two stubs in main memory (the exit at the end of the line input, `$9599`, and DOS's file name check, `$95A6`) were inside an array the line editor writes (`$9580-$95A8`). They moved to free bytes at `$95CE` and `$951A`.
 
 ## 1.1b
 

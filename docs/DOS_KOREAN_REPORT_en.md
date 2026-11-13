@@ -603,7 +603,7 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 - The message code and texts and the command-name code are in two include files (`src/driver/kdos_msg.inc`, `kdos_cmd.inc`), assembled twice: in the 16K card build as before, and in a new segment `BANK6` (scope `K6`) that runs at `$D000` of bank 6, page 1 (769 bytes, `$D000-$D300`). kScheme leaves that page alone when K-HANGEUL is in bank 7 (its answer in this session). The two copies differ only in how they leave (`KEXIT` or `SatLeave1`) and print (`COUT` or `K6PUT`); the Saturn copy has no INIT guard.
 - The loader (`SatFinish`) copies `BANK6` into bank 6 page 1, only when the driver goes into bank 7 (a 128K card).
 - `KPATCH6` (bank 7, in the free bytes before the shift masks; 1 byte left there) runs at the end of `SATCOPY`, so at start-up, at `HAN` and at the rebuild entry `$D3FA`. It writes the stubs and makes the DOS patches, each only if DOS has the stock bytes.
-- Stubs: `$BCDF-$BCFA` in DOS's unused bytes (28 bytes, outside the `$9400` block, so kScheme's load does not wipe them): `K6IN` counts the entry in `SATDEPTH` and maps bank 6 page 1, `K6MSG` (`$A702`), `K6AL` (`$A000`), `K6PUT` (prints through `$940A`, which enters and leaves bank 7, then maps bank 6 again). The file-name stub `K6FN` is at `$95A6-$95AB` in the `$9400` block (free bytes after the trampoline's piece 2), written by every `SATCOPY`, so `$D3FA` makes it again.
+- Stubs: `$BCDF-$BCFA` in DOS's unused bytes (28 bytes, outside the `$9400` block, so kScheme's load does not wipe them): `K6IN` counts the entry in `SATDEPTH` and maps bank 6 page 1, `K6MSG` (`$A702`), `K6AL` (`$A000`), `K6PUT` (prints through `$940A`, which enters and leaves bank 7, then maps bank 6 again). The file-name stub `K6FN` is at `$951A-$951F` in the `$9400` block (free bytes after `SATMODE`; it was first put after the trampoline's piece 2), written by every `SATCOPY`, so `$D3FA` makes it again.
 - Each routine leaves with `jmp SatLeave1` after pushing the address to go on at: the outermost leave selects bank 0 and the caller's card state (`SATSTATE`), as kScheme expects.
 - `INIT` on a Saturn card still runs `HAN` (the loader writes `jmp SATHAN` at `$A55B`), so these patches never reach a new disk. The INIT guard for Saturn needs more main RAM than is free (the `$BCDF` area is full).
 
@@ -623,7 +623,7 @@ The kScheme session recommended C (it is our own bank, so we don't depend on whe
 
 **Not tested yet.** `PR#0` on a Saturn card (the text page after `PR#0` was hard to read in the test); a 64K Saturn card (by design DOS stays English there).
 
-**Space left on Saturn:** bank 7 free block 1 byte; DOS `$BCFB-$BCFF` 5 bytes; `$95AC-$95AD` 2 bytes; bank 6 page 1 about 3.3 KB.
+**Space left on Saturn:** bank 7 free block 1 byte; DOS `$BCFB-$BCFF` 5 bytes; `$95DB` 1 byte; bank 6 page 1 about 3.3 KB.
 
 ### 9.6 Message wording (user decision, 2026-11-03)
 
