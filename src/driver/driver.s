@@ -35,6 +35,7 @@
 .include "version.inc"                ; VERSION_TXT, made from the VERSION file by tools/mkversion.py
 
 .import __LCIMG_LOAD__, __LCIMG_SIZE__
+.import __LCB1_LOAD__, __LCB1_SIZE__
 .import __BANNER_LOAD__, __BANNER_RUN__, __BANNER_SIZE__
 .if SATLOAD
 .import __SATDATA_LOAD__, __BANK6_LOAD__, __BANK6_SIZE__
@@ -116,6 +117,28 @@ Loader:
         sta  $FF
         ldx  #<__LCIMG_SIZE__
         jsr  CopyBytes
+.if SATLOAD
+        lda  SatSelByte
+        bne  @nob1                  ; a Saturn card: the second-bank code (segment LCB1) is for the plain card only
+.endif
+        lda  LCB1WR                 ; $C089 twice: ROM read, language card RAM write enabled, the second 4K bank ($D000)
+        lda  LCB1WR
+        lda  #<__LCB1_LOAD__        ; the fast English draw (engfast.inc) goes to $D000 of that bank
+        sta  $06
+        lda  #>__LCB1_LOAD__
+        sta  $07
+        lda  #$00
+        sta  $08
+        lda  #$D0
+        sta  $09
+        lda  #>__LCB1_SIZE__
+        sta  $FF
+        ldx  #<__LCB1_SIZE__
+        jsr  CopyBytes
+        jsr  GenTabs                ; the shift tables of engfast.inc, into the part of bank 1 after the code
+        lda  LCROMWR                ; and back to the first bank, write enabled, ROM visible (as before)
+        lda  LCROMWR
+@nob1:
         ldx  #$00                   ; the ROM is visible here: $FBB3 is $06 on a IIe, IIc and IIgs ($EA on a II Plus)
         lda  $FBB3                  ; (after the copy: $1CBD is inside the staged image, and storing there before zeroed a byte of
         cmp  #$06                   ; it: the high byte of the stock INIT handler address in KSWT, or other code if the loader grows)
@@ -179,6 +202,79 @@ RstStub:                            ; Saturn: jsr $A59E (HAN) / jmp $9DBF (DOS's
         .byte $20,$9E,$A5,$4C,$BF,$9D
 DosPatch3:                          ; (as it is: the plain card guards INIT, see KINITC; the Saturn card makes INIT run HAN)
         .byte $4C,<HANMAIN,>HANMAIN
+
+; The shift tables of engfast.inc (see the comment at its end), made into bank 1 at TABS and after. The loader runs from main
+; RAM, so the operands of the four stores are patched for each k. $FA-$FC: the value being shifted, $FD: k.
+GenTabs:
+        ldx  #$00
+@k:     stx  $FD
+        txa
+        clc
+        adc  #>TABS                 ; (the four tables of block k start at TABS + 256 * k + 64 * i: not necessarily on a page,
+        sta  @s0+2                  ; so the page of each store is worked out on its own)
+        txa
+        clc
+        adc  #>(TABS+64)
+        sta  @s1+2
+        txa
+        clc
+        adc  #>(TABS+128)
+        sta  @s2+2
+        txa
+        clc
+        adc  #>(TABS+192)
+        sta  @s3+2
+        ldy  #$00
+@v:     sty  $FA                    ; w = v
+        lda  #$00
+        sta  $FB
+        sta  $FC
+        ldx  $FD
+        beq  @n0
+@sl:    asl  $FA
+        rol  $FB
+        dex
+        bne  @sl                    ; w = v << k
+@n0:    lda  $FA
+        and  #$7F
+@s0:    sta  TABS,y                 ; B0_k
+        lda  $FA
+        asl  a
+        lda  $FB
+        rol  a
+@s1:    sta  TABS+64,y              ; B1_k = (v << k) >> 7
+        ldx  #$06                   ; w = v << (k + 6), three bytes
+@sh:    asl  $FA
+        rol  $FB
+        rol  $FC
+        dex
+        bne  @sh
+        lda  $FD
+        bne  @nh0
+        lda  $FA                    ; k = 0: HB0 = (v << 6) and $7F
+        and  #$7F
+        sta  TABS+7*256,y
+@nh0:   lda  $FA
+        asl  a
+        lda  $FB
+        rol  a
+        and  #$7F
+@s2:    sta  TABS+128,y             ; HB1_k = ((v << (k + 6)) >> 7) and $7F
+        lda  $FB
+        asl  a
+        rol  $FC
+        asl  a
+        rol  $FC
+        lda  $FC
+@s3:    sta  TABS+192,y             ; HB2_k = (v << (k + 6)) >> 14
+        iny
+        cpy  #$40
+        bne  @v
+        ldx  $FD
+        inx
+        cpx  #$07
+        bne  @k
+        rts
 
 ; copy X + 256 * ($FF - 1) bytes from ($06) to ($08)
 CopyBytes:
@@ -1407,8 +1503,14 @@ CUW:
         tax                         ; D4CF  AA
         jsr  LINEX                  ; was jsr LINE
         jsr  ADDOFF                 ; D4D3  20 AB F2
+.if SATURN
         lda  #$0C                   ; D4D6  A9 0C
         sta  ROWI                   ; D4D8  8D F8 1F
+.else
+        jsr  CURHK                  ; the number of lines of the cursor: 12 in English mode, 6 (the upper half) in Hangul mode
+        nop
+        nop
+.endif
 CU3:
         ldy  #$00                   ; D4DB  A0 00
         lda  ($26),y                ; D4DD  B1 26
@@ -3201,6 +3303,7 @@ L_EBA3:
 ; Stock draw routines, patched to jump to the faster blit above
 ; ==========================================================================
 ENBLIT:
+.if SATURN
         ldx  #$00                   ; EBAA  A2 00
 EL:
         cpx  #$02                   ; EBAC  E0 04
@@ -3228,6 +3331,28 @@ ES2:
         lda  #$06                   ; EBD1  A9 06
         sta  P1L                    ; EBD3  85 02
         jmp  BLIT                   ; EBD5  4C 00 D4
+.else
+        ; plain card: the fast English draw in the second bank, see engfast.inc. Carry set = it did not draw (strip
+        ; buffer, overstrike or underline): GLY is built and P1L set, BLIT does it as before.
+        ldy  #$09                   ; the font is in the first bank, which ENGFAST cannot see: take the 10 rows of the glyph to GLY
+@fc:    lda  (P0L),y
+        sta  GLY,y
+        dey
+        bpl  @fc
+        bit  LCB1RD                 ; $C088: the second 4K bank ($D000), RAM read
+        jsr  ENGFAST
+        bit  LCRAMRD                ; $C080: back to the first bank
+        bcs  @blit
+        rts
+@blit:  jmp  BLIT
+        ; Hangul: the fast draw (HANFAST in engfast.inc) instead of KOFILL + BLIT; carry set = it did not draw: KOBLIT as before
+KOFAST: bit  LCB1RD
+        jsr  HANFAST
+        bit  LCRAMRD
+        bcs  KOBLIT
+        rts
+        .res 46-(*-ENBLIT), $EA     ; the old routine was 46 bytes: what follows stays where it was
+.endif
 KOBLIT:
         jsr  KOFILL                 ; EBD8  20 F1 FE
         lda  #$0C                   ; EBDB  A9 0C
@@ -3826,12 +3951,24 @@ L_F01F:
         sec                         ; F022  38
         rts                         ; F023  60
 PACK:
+.if SATURN
         lda  #$80                   ; F024  A9 80
         sta  LEAD                   ; F026  8D 9E 94
         ldx  #$00                   ; F029  A2 00
 L_F02B:
         lda  D_E2DB,x               ; F02B  BD DB E2
         beq  L_F038                 ; F02E  F0 08
+.else
+        ; plain card: PACKF (engfast.inc, second bank) makes LEAD and TRAIL from CHO, JUNG, JONG and JONG2 by table lookup, in
+        ; place of the table scans below (about 600 cycles a syllable); it then plots them as the code below does. The 12 bytes
+        ; are those of the first five instructions; the old code after them is not reached (its labels stay where they were).
+        bit  LCB1RD
+        jsr  PACKF
+        bit  LCRAMRD
+        jmp  L_F097
+L_F02B = PACK + 7
+.endif
+.if SATURN
         cmp  CHO                    ; F030  CD A8 94
         beq  L_F03C                 ; F033  F0 07
         inx                         ; F035  E8
@@ -3900,6 +4037,31 @@ L_F08E:
 L_F091:
         ora  TRAIL                  ; F091  0D 9F 94
         sta  TRAIL                  ; F094  8D 9F 94
+.else
+        ; The old body of PACK (the table scans) is not reached on the plain card any more (see PACKF in engfast.inc). Its 103
+        ; bytes hold the helper of CURSOR; its labels stay as equates, because the raw table at D_F0A6 was written with
+        ; branches to some of them.
+CURHK:  lda  #$0C                   ; the cursor draws this many lines: the whole cell in English mode,
+        bit  HMODE
+        bpl  @e
+        lsr  a                      ; the upper half in Hangul mode (the flag HMODE has bit 7 set)
+@e:     sta  ROWI
+        rts
+        .res 103-(*-CURHK), $EA
+L_F038 = PACK + $14
+L_F03C = PACK + $18
+L_F03F = PACK + $1B
+L_F049 = PACK + $25
+L_F056 = PACK + $32
+L_F05A = PACK + $36
+L_F05D = PACK + $39
+L_F06D = PACK + $49
+L_F07B = PACK + $57
+L_F07D = PACK + $59
+L_F08A = PACK + $66
+L_F08E = PACK + $6A
+L_F091 = PACK + $6D
+.endif
 L_F097:
         lda  LEAD                   ; F097  AD 9E 94
         jsr  PLOTCH                 ; F09A  20 0E F1
@@ -4057,8 +4219,11 @@ DRAWKO:
         jsr  L_EC35                 ; F1C8  20 35 EC
 L_F1CB:
         jsr  DECODE                 ; F1CB  20 2E F3
-        lda  #$00                   ; F1CE  A9 00
-        ldx  #$1F                   ; F1D0  A2 1F
+        ; What follows up to L_F289 is the stock Hangeul2 way of building the glyph pieces: it fills the 32 bytes at
+        ; S_0750-S_076F ($94F1-$9510), which nothing reads any more (KOBLIT's KOFILL builds the glyph from the font by
+        ; itself). It was about 2,000 cycles of every syllable. Skipped; the bytes stay where they were.
+        jmp  DRAWKO2                ; was lda #$00 / ldx #$1F
+        .byte $EA
 L_F1D2:
         sta  S_0750,x               ; F1D2  9D F1 94
         dex                         ; F1D5  CA
@@ -4148,7 +4313,12 @@ L_F289:
         lda  S_06B0                 ; F289  AD A5 94
         sta  S_076F                 ; F28C  8D 10 95
         sta  S_075F                 ; F28F  8D 00 95
+DRAWKO2:
+.if SATURN
         jsr  KOBLIT                 ; F292  20 D8 EB
+.else
+        jsr  KOFAST                 ; (the plain card: HANFAST first, KOBLIT if that declines)
+.endif
         jmp  L_F2CC                 ; F295  4C CC F2
 PIXY:
         lda  CV                     ; F298  A5 25
@@ -6319,6 +6489,12 @@ KGUARD = 0
 .include "kdos_cmd.inc"
 .endscope
 .endif
+
+; the second 4K bank of the 16K language card ($D000, bank 1 in card terms): code and tables for the fast English draw. The
+; loader copies it there on a plain card; a Saturn card does not use it. It is the same in the Saturn build (the file
+; layout must be the same in both builds, see tools/satpack.py).
+.segment "LCB1"
+.include "engfast.inc"
 
 ; room for the patch lists (tools/satpack.py writes them here); empty when SATLOAD = 0
 .segment "SATDATA"

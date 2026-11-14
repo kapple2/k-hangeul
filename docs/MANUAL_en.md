@@ -106,6 +106,7 @@ Top: the key to press. Bottom: the jamo it types. The keys are laid out as on th
 - Compound vowels and final clusters are typed as the two letters in a row: ㅘ = H K, ㅝ = N J, ㅢ = M L, ㄳ = R T, ㄺ = F R.
 - Example: `한글` is **Ctrl-K** `G K S R M F` **Ctrl-A**; `까따빠` is **Ctrl-K** `- K = K * K` **Ctrl-A**.
 - The left arrow (backspace) deletes.
+- **The cursor shows the mode** (16K card): in English mode it is a solid block (the whole cell), in Hangul mode only the upper half of the cell. Its width follows the cell as before: 6 pixels over an English character or an empty cell, 12 over a Hangul syllable. (On a Saturn card the cursor is still the whole block in both modes.)
 
 **Editing keys** (the keys carried over from Hangeul2 that were checked on this driver)
 
