@@ -12,7 +12,8 @@
 | `stypec/` | `STYPEC`. `STYPE` 효과를 파일 이름을 물어보는 프로그램으로 만든 것 | `build/STYPEC.bin` |
 | `fonteditor/` | 글꼴 편집기. `editor.py`(편집기), `run_editor.bat`(실행), `font.json`(드라이버가 그리는 모든 글리프), `../docs/FONT_EDITOR.md` | 편집 결과는 `font.json`에 저장 |
 | `samples/` | 디스크에 올라가는 예제 글. 「날개」 `NALGAE1`-`16`(N바이트 형식), `mixed.bas`, `story.bas`. `utf8txt/`는 같은 글의 UTF-8 사본(편집용). 자세한 설명은 `samples/README.md` | 디스크 파일 |
-| `tools/` | `mkdist.py`(디스크와 `DIST` 만들기), `nbyte.py`(N바이트 ↔ UTF-8), `render/`(글꼴 그림), `disasm/`(옛 드라이버를 풀던 기록). 자세한 설명은 `tools/README.md` | `DIST\K-HANGEUL.DSK` 등(mkdist), 그 밖은 파일 |
+| `tools/` | `mkdist.py`(디스크와 `DIST` 만들기), `nbyte.py`(N바이트 ↔ UTF-8), `render/`(글꼴 그림), `disasm/`(옛 드라이버를 풀던 기록), `oneoff/`(한 번만 실행한 고침 도구의 기록). 자세한 설명은 `tools/README.md` | `DIST\K-HANGEUL.DSK` 등(mkdist), 그 밖은 파일 |
+| `legacy/` | 옛 도구. `nprint.s`(NPRINT, 79바이트 인쇄 루틴)와 옛 빌드 도구 설명 (`legacy/README.md`) | 옛 기록 |
 | `make_all.bat` / `Makefile` | 모든 것을 한 번에 만듭니다. 다섯 프로그램을 빌드하고 `mkdist.py`를 실행합니다 | 아래 "빌드 결과" 참고 |
 | `README.md`, `PYTHON.md` | 이 설명, Python 설정(패키지 목록 `requirements.txt`는 저장소 맨 위에 있음) | |
 
@@ -59,7 +60,8 @@ make_all.bat clean      빌드 폴더와 DIST를 지움 (저장소 맨 위의 cl
 | `stypec/` | `STYPEC`: the `STYPE` effect as a program that asks for a file name | `build/STYPEC.bin` |
 | `fonteditor/` | the font editor: `editor.py`, `run_editor.bat` (starts it), `font.json` (every glyph the driver draws), `../docs/FONT_EDITOR.md` | edits are saved in `font.json` |
 | `samples/` | the sample text that goes on the disk: the story `NALGAE1`-`16` (N-byte format), `mixed.bas`, `story.bas`. `utf8txt/` holds UTF-8 copies for editing. See `samples/README.md` | disk files |
-| `tools/` | `mkdist.py` (makes the disk and `DIST`), `nbyte.py` (N-byte ↔ UTF-8), `render/` (font pictures), `disasm/` (record of how the old driver was taken apart). See `tools/README.md` | `DIST\K-HANGEUL.DSK` and others (mkdist); files otherwise |
+| `tools/` | `mkdist.py` (makes the disk and `DIST`), `nbyte.py` (N-byte ↔ UTF-8), `render/` (font pictures), `disasm/` (record of how the old driver was taken apart), `oneoff/` (record of the one-time edit scripts). See `tools/README.md` | `DIST\K-HANGEUL.DSK` and others (mkdist); files otherwise |
+| `legacy/` | old tools: `nprint.s` (NPRINT, the 79-byte print routine) and the old build tool note (`legacy/README.md`) | a record |
 | `make_all.bat` / `Makefile` | builds everything: the five programs, then runs `mkdist.py` | see "Where the final disk is" |
 | `README.md`, `PYTHON.md` | this file and the Python setup (the package list, `requirements.txt`, is at the top of the repository) | |
 
