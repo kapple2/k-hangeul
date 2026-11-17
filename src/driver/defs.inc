@@ -294,6 +294,7 @@ SATHAN  = $9481                 ; the HAN command's entry in main RAM (Saturn)
 SATCATI = $9470                 ; the entry that DOS calls for CATALOG (CATINIT) (Saturn)
 SATCATW = $9571                 ; the entry that DOS calls while CATALOG waits for a key (CATWAIT) (Saturn)
 BANOK = SATBANOK
+PBANOK = $1CBE                  ; plain card: $80 until the start-up banner has run (then 0): main RAM, VARB + $3E, unused there
 BELLDX = BELL
 .if SATURN
 BELLD = VARB + $30            ; INIT copies the stock bell image here; the real bell is SatBell
@@ -301,3 +302,4 @@ BELLD = VARB + $30            ; INIT copies the stock bell image here; the real 
 BELLD = BELL                    ; stock: INIT copies the bell routine to $1CB0
 .endif
 SATREINIT = $D3FA                ; the frozen rebuild entry in the K-HANGEUL bank (page 2): jmp STATEINIT; $D3FD version $01, $D3FE magic $5A
+KPL = $1A                       ; zero page pointer of KPUTS (kerr.inc, kdos_msg.inc): the draw code uses $00-$09, the driver nothing at $1A/$1B
