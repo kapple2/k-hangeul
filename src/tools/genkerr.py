@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import nbyte
 
 CHO = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 JUNG = [3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 18, 19, 20, 21, 22, 23, 26, 27, 28, 29]
@@ -45,11 +47,11 @@ ROM = [
     (0x10, "SYNTAX", "문법"),
     (0x16, "RETURN WITHOUT GOSUB", "GOSUB 없음"),
     (0x2A, "OUT OF DATA", "자료 끝"),
-    (0x35, "ILLEGAL QUANTITY", "값 범위"),
+    (0x35, "ILLEGAL QUANTITY", "범위"),
     (0x45, "OVERFLOW", "넘침"),
     (0x4D, "OUT OF MEMORY", "메모리 부족"),
-    (0x5A, "UNDEF'D STATEMENT", "없는 문장"),
-    (0x6B, "BAD SUBSCRIPT", "첨자 범위"),
+    (0x5A, "UNDEF'D STATEMENT", "줄 없음"),
+    (0x6B, "BAD SUBSCRIPT", "첨자"),
     (0x78, "REDIM'D ARRAY", "배열 중복"),
     (0x85, "DIVISION BY ZERO", "0으로 나눔"),
     (0x95, "ILLEGAL DIRECT", "직접 불가"),
@@ -108,27 +110,34 @@ def hexs(b: bytes) -> str:
     return ",".join("$%02X" % x for x in b)
 
 
+def k6_lines() -> list[str]:
+    """the same texts as Hangul-mode keystrokes for the Saturn card (bank 6 prints through COUT): keys, then the texts in the
+    same order, found by counting $00 ends (kerr6.inc)"""
+    lines = ["; made by src/tools/genkerr.py: do not edit. Korean Applesoft error messages as keystroke text (Saturn card, bank 6)."]
+    keys = [off for off, en, ko in ROM] + [0xF1, 0xF2]
+    texts = [ko for off, en, ko in ROM] + [IN, ERR]
+    lines.append("KEK:    .byte " + ",".join("$%02X" % k for k in keys))
+    lines.append("KEKN = %d" % len(keys))
+    lines.append("KET:")
+    for k, t in zip(keys, texts):
+        b = bytes(nbyte.encode(t)) + bytes([0])
+        lines.append("        .byte %s    ; $%02X %s" % (hexs(b), k, t))
+    return lines
+
+
 def main() -> None:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     lines = ["; made by src/tools/genkerr.py: do not edit (change the texts there). Korean Applesoft error messages, johab pairs, $00 ended."]
     total = 0
-    for k, (off, en, ko) in enumerate(ROM):
-        b = johab(ko) + b"\0"
+    keys = [off for off, en, ko in ROM] + [0xF1, 0xF2]
+    texts = [ko for off, en, ko in ROM] + [IN, ERR]
+    lines.append("KEK:    .byte " + ",".join("$%02X" % k for k in keys) + "    ; the key of each text: the ROM offset of the first character of a message; $F1 the I of ' IN '; $F2 the space of ' ERROR'")
+    lines.append("KEKN = %d" % len(keys))
+    lines.append("KET:                        ; the texts in the order of the keys, each ended by $00")
+    for k, t in zip(keys, texts):
+        b = johab(t) + bytes([0])
         total += len(b)
-        lines.append("KEM%d:     .byte %s    ; $%02X %s: %s" % (k, hexs(b), off, en, ko))
-    for name, s, what in (("KEERR", ERR, "ERROR"), ("KEIN", IN, "IN")):
-        b = johab(s) + b"\0"
-        total += len(b)
-        lines.append("%s:    .byte %s    ; %s: '%s'" % (name, hexs(b), what, s))
-    lines.append("KEMT:                       ; key, address of the text: the ROM offset of the first character of a message; $F1 the I of ' IN '; $F2 the space of ' ERROR'")
-    for k, (off, en, ko) in enumerate(ROM):
-        lines.append("        .byte $%02X" % off)
-        lines.append("        .word KEM%d" % k)
-    lines.append("        .byte $F1")
-    lines.append("        .word KEIN")
-    lines.append("        .byte $F2")
-    lines.append("        .word KEERR")
-    lines.append("KEMTEND = * - KEMT - 3")
+        lines.append("        .byte %s    ; $%02X %s" % (hexs(b), k, t))
     if "--show" in sys.argv:
         print("text bytes", total)
         for off, en, ko in ROM:
@@ -137,6 +146,7 @@ def main() -> None:
     d = Path(args[0]).parent if args else Path(__file__).resolve().parent.parent / "driver"
     out = Path(args[0]) if args else d / "kerr_text.inc"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (d / "kerr6_text.inc").write_text("\n".join(k6_lines()) + "\n", encoding="utf-8")
     dl = dos_lines()
     (d / "kdos_johab.inc").write_text("\n".join(dl) + "\n", encoding="utf-8")
     print("wrote", out, "text", total, "bytes; kdos_johab.inc", dl[-1])

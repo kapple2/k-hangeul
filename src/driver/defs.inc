@@ -264,7 +264,7 @@ STRIPSTRIDE = 42           ; bytes from one pixel row of the strip to the next (
 SATPROBE = $FFF9                ; a byte in every bank that the card detection saves, tags and restores
 SATSIG   = $FFF5                ; 4 bytes: the K-HANGEUL signature "KHG1" in the K-HANGEUL bank (the image ends at $FFF4)
 SATSELV  = $D3FF                ; the last byte of the zero padding at $D14F-$D3FF: the select switch of the K-HANGEUL bank, written by the loader
-SATDATASIZE = 3072              ; room reserved at the end of the file for the patch lists
+SATDATASIZE = 2784              ; room reserved at the end of the file for the patch lists (satpack trims the file after the used part); with MAIN ending at $6000 (cfg) this keeps the file below the FONT12 staging area
 
 ; The fonts. Stock: the Korean font is in main RAM at $0800 (24 bytes a glyph: 12 rows of low byte, high byte). Saturn: the
 ; Korean font is packed to 18 bytes a glyph (12 low bytes, then 6 bytes of two 4-bit high parts each) in the other $D000

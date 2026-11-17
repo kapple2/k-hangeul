@@ -796,13 +796,17 @@ KBSIG       = KBBASE+3
 KBMOD_IN    = KBBASE+5
 KBMOD_OUT   = KBBASE+8
 KBIN:
+        jsr  KBCHK
+        bne  @r
+        jmp  KBMOD_IN
+@r:
+        rts
+KBCHK:                                  ; Z set when the add-on's signature is there (shared by KBIN and KBOUT)
         lda  KBSIG
         cmp  #'K'
         bne  @r
         lda  KBSIG+1
         cmp  #'B'
-        bne  @r
-        jmp  KBMOD_IN
 @r:
         rts
 KBOUT:
@@ -813,13 +817,13 @@ KBOUT:
         jsr  KEFILT                     ; the Korean Applesoft error messages (kerr.inc): carry set = it printed the text instead
         bcs  @eat
 @n:
+.else
+        jsr  K6FN                       ; Saturn: the Korean error messages, in bank 6 (kerr6.inc). The stub keeps A, X and Y, and
+                                        ; when the character was swallowed it does not come back here (KPATCH6 makes it an rts
+                                        ; when there is no bank 6 code)
 .endif
         sta  CHAR                       ; kept for the original path; COUT sets it again
-        lda  KBSIG
-        cmp  #'K'
-        bne  @orig
-        lda  KBSIG+1
-        cmp  #'B'
+        jsr  KBCHK
         bne  @orig
         txa
         pha
@@ -1157,31 +1161,33 @@ K6PUT = K6IN + 22
 K6FN  = $951A                           ; 6 bytes, $951A-$951F (it was at $95A6, inside S_05D0)
 .assert K6PUT = K6::KPUTC, error, "K6PUT moved"
 .assert SatLeave1 = K6::KX, error, "SatLeave1 moved"
+.assert SatEnter = K6::SatEnter6, error, "SatEnter moved (kerr6.inc)"
+.assert SATDEPTH = K6::SatDepth6, error, "SATDEPTH moved (kerr6.inc)"
 K6DB:   .byte $EE,<SATDEPTH,>SATDEPTH, $2C,$8E,$C0, $2C,$88,$C0, $60     ; K6IN: inc SATDEPTH / bit $C08E / bit $C088 / rts
         .byte $20,<K6IN,>K6IN, $4C,<K6::KMSGC,>K6::KMSGC                ; K6MSG
         .byte $20,<K6IN,>K6IN, $4C,<K6::KAL,>K6::KAL                    ; K6AL
         .byte $20,$0A,$94, $4C,<K6SEL,>K6SEL                            ; K6PUT
 K6DSZ = * - K6DB
 .assert K6DSZ <= 33, error, "the Saturn stubs do not fit in $BCDF-$BCFF"
-K6FNB:  .byte $20,<K6IN,>K6IN, $4C,<K6::KFNC,>K6::KFNC                  ; K6FN
+K6FNB:  .byte $20,<K6IN,>K6IN, $4C,<K6::KDISP,>K6::KDISP                ; K6FN (KDISP: the file name check, or the error filter)
 K6R:    rts
 KPATCH6:
-        lda  SATSELV
-        cmp  #$8F                       ; bank 7 (then bank 6 page 1 holds the code; kScheme leaves it alone)
-        bne  K6R
         ldx  #5
-@n:     lda  K6FNB,x
+@n:     lda  K6FNB,x                    ; K6FN is called by KBOUT too: it has to be there in every case
         sta  K6FN,x
         dex
         bpl  @n
-        lda  K6IN
+        lda  SATSELV
+        cmp  #$8F                       ; bank 7 (then bank 6 page 1 holds the code; kScheme leaves it alone)
+        beq  @ok
+        lda  #$60                       ; no bank 6 code: K6FN is an rts
+        sta  K6FN
+        rts
+@ok:    lda  K6IN
         cmp  #$EE                       ; the stubs are there already (HAN, the rebuild entry)
         beq  @m
-        ldx  #K6DSZ-1
-@z:     lda  K6IN,x                     ; else the bytes must be free (zero)
+        ora  K6IN+K6DSZ-1               ; else the first and the last byte must be free (zero)
         bne  K6R
-        dex
-        bpl  @z
         ldx  #K6DSZ-1
 @c:     lda  K6DB,x
         sta  K6IN,x
@@ -6517,6 +6523,7 @@ KPUTC = $BCF5                       ; K6PUT
 KGUARD = 0
 .include "kdos_msg.inc"
 .include "kdos_cmd.inc"
+.include "kerr6.inc"
 .endscope
 .endif
 

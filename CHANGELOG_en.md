@@ -5,12 +5,20 @@
 The version number is written in one place only, the `VERSION` file at the top of the repository. The build takes the `v1.2b` text of the start-up banner from it.
 To raise the version, write a new entry at the top of this file and change the version text in the user manual (`docs/MANUAL.md`, `docs/MANUAL_en.md`) too.
 
+## 1.5 (2026-11-17)
+
+- **Korean Applesoft error messages on the Saturn 128K card too.** The code and the text (as Hangul-mode keystrokes, printed through `K6PUT` like the Korean DOS messages) are in bank 6, page 1 (`src/driver/kerr6.inc`). `KBOUT` calls the stub `K6FN` (`$951A`), which now goes to `KDISP` in bank 6: it tells DOS's file name check from the error filter by the high byte of the return address (`$D1` is `KBOUT`), then does the same as `KEFILT` (the stack frames at `COUT` are the same on both cards). It returns to the driver by `jmp SatEnter` after two `dec SATDEPTH`; a swallowed character drops its return into `KBOUT` first. While it prints, `COUT` comes back through the filter for every character and overwrites `KEA/KEX`, so the ROM's X is kept on the stack. Without bank 6 code (the driver not in bank 7) `KPATCH6` makes `K6FN` an `rts`. Tested in MAME with `-sl0 ssram`.
+- **Shorter texts and a smaller table** (both cards): `범위` (ILLEGAL QUANTITY), `첨자` (BAD SUBSCRIPT) and `줄 없음` (UNDEF'D STATEMENT). The text is found by counting off `$00` ends (keys in `KEK`) instead of a table of addresses, which saved 19 bytes of the file.
+- **File size.** The file must end before `$6000`: `MAIN` in `driver.cfg` now ends there (`$506C` bytes), `SATDATASIZE` is 2784, and `satpack.py` merges runs closer than 3 bytes (it was 4). The file is 20,566 bytes (ends at `$5FE9`: 22 bytes left).
+- `KBIN` and `KBOUT` share the add-on's signature check (`KBCHK`), and `KBOUT` no longer stores `CHAR` first (3 bytes less on the Saturn card, where the driver page was full).
+- Version 1.5.
+
 ## 1.4 (2026-11-17)
 
 - **Korean Applesoft error messages (16K card).** `?UNDEF'D STATEMENT ERROR IN 10` now shows as `?없는 문장 오류 줄 10`; all 17 Applesoft errors have a Korean text (`FOR 없음`, `문법`, `GOSUB 없음`, `자료 끝`, `값 범위`, `넘침`, `메모리 부족`, `없는 문장`, `첨자 범위`, `배열 중복`, `0으로 나눔`, `직접 불가`, `형 다름`, `문자열 김`, `식 복잡`, `계속 불가`, `없는 함수`). ` ERROR` becomes ` 오류` and ` IN ` becomes ` 줄 `; the line number and the bell are the ROM's. The ROM's English text is not changed: `KBOUT` (the start of `COUT`) calls `KEFILT` (`src/driver/kerr.inc`), which recognises the ROM's error printer by the return addresses on the stack (`$66 $DB`, then the caller of `OUTDO`: `$D425` the message loop, `$D433` ` ERROR`, `$ED1F` ` IN `; the same on the II Plus, IIe and IIc ROMs) and prints the Korean text instead. Any other output goes on unchanged. Without DOS's output hook in the chain (CSW set to the driver directly) the frames differ and the text stays English. Tested on the II Plus, enhanced IIe and IIc (MAME), with and without the KBASIC add-on.
 - **The text is johab pairs** (2 bytes a syllable, made by `src/tools/genkerr.py` into `kerr_text.inc`) drawn with `PLOTCH`, not Hangul-mode keystrokes. The Korean DOS messages of the 16K card (`kdos_msg.inc`) use the same form now (`kdos_johab.inc`, 185 bytes instead of about 340), printed by `KPUTS`: the screen is the same, and 95 bytes of the `$D000-$D3FF` block came free. The Saturn card keeps the keystroke text in bank 6.
 - **HAN, Ctrl-Reset and INIT no longer print the start-up banner again** (the Saturn arrangement already did not). The banner code runs once, at boot, from `$1CC0`; then `KRC` copies the error filter (segment `KERRRES`, in the file behind the banner) over it, `jmp PBAN` at `$E42C` (it was `jmp BN`) skips the banner when `PBANOK` (`$1CBE`) is clear, and `KBOUT` calls the filter only then. `BHEX`, `BPAR`, `BDEC` and `NUM`, which the KBASIC add-on calls, stay at `$1E51-$1ED0`. The file grew by 379 bytes (20,150 bytes).
-- **Saturn card: not yet.** The filter does not run there (the English text stays); see `docs/MEMORY_LAYOUT_en.md`.
+- **Saturn card: not in 1.4** (see 1.5).
 - Version 1.4.
 
 ## 1.3 (2026-11-16)

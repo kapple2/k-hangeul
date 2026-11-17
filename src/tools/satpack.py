@@ -19,7 +19,7 @@ import re
 import sys
 from pathlib import Path
 
-GAP = 4          # runs closer than this are merged
+GAP = 3          # runs closer than this are merged
 
 
 def segments(mapfile: Path) -> dict[str, tuple[int, int, int]]:
