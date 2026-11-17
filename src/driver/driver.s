@@ -37,6 +37,7 @@
 .import __LCIMG_LOAD__, __LCIMG_SIZE__
 .import __LCB1_LOAD__, __LCB1_SIZE__
 .import __BANNER_LOAD__, __BANNER_RUN__, __BANNER_SIZE__
+.import __KERRRES_LOAD__, __KERRRES_RUN__, __KERRRES_SIZE__
 .if SATLOAD
 .import __SATDATA_LOAD__, __BANK6_LOAD__, __BANK6_SIZE__
 .endif
@@ -136,6 +137,8 @@ Loader:
         ldx  #<__LCB1_SIZE__
         jsr  CopyBytes
         jsr  GenTabs                ; the shift tables of engfast.inc, into the part of bank 1 after the code
+        lda  #$80
+        sta  PBANOK                 ; plain card: the start-up banner is still to run (until then the Korean error filter is not there)
         lda  LCROMWR                ; and back to the first bank, write enabled, ROM visible (as before)
         lda  LCROMWR
 @nob1:
@@ -793,23 +796,34 @@ KBSIG       = KBBASE+3
 KBMOD_IN    = KBBASE+5
 KBMOD_OUT   = KBBASE+8
 KBIN:
-        lda  KBSIG
-        cmp  #'K'
-        bne  @r
-        lda  KBSIG+1
-        cmp  #'B'
+        jsr  KBCHK
         bne  @r
         jmp  KBMOD_IN
 @r:
         rts
-KBOUT:
-        pha                             ; the original first instruction of COUT
-        sta  CHAR                       ; kept for the original path; COUT sets it again
+KBCHK:                                  ; Z set when the add-on's signature is there (shared by KBIN and KBOUT)
         lda  KBSIG
         cmp  #'K'
-        bne  @orig
+        bne  @r
         lda  KBSIG+1
         cmp  #'B'
+@r:
+        rts
+KBOUT:
+        pha                             ; the original first instruction of COUT
+.if !SATURN
+        bit  PBANOK                     ; the start-up banner is still to run: the filter is not in main RAM yet
+        bmi  @n
+        jsr  KEFILT                     ; the Korean Applesoft error messages (kerr.inc): carry set = it printed the text instead
+        bcs  @eat
+@n:
+.else
+        jsr  K6FN                       ; Saturn: the Korean error messages, in bank 6 (kerr6.inc). The stub keeps A, X and Y, and
+                                        ; when the character was swallowed it does not come back here (KPATCH6 makes it an rts
+                                        ; when there is no bank 6 code)
+.endif
+        sta  CHAR                       ; kept for the original path; COUT sets it again
+        jsr  KBCHK
         bne  @orig
         txa
         pha
@@ -1147,31 +1161,33 @@ K6PUT = K6IN + 22
 K6FN  = $951A                           ; 6 bytes, $951A-$951F (it was at $95A6, inside S_05D0)
 .assert K6PUT = K6::KPUTC, error, "K6PUT moved"
 .assert SatLeave1 = K6::KX, error, "SatLeave1 moved"
+.assert SatEnter = K6::SatEnter6, error, "SatEnter moved (kerr6.inc)"
+.assert SATDEPTH = K6::SatDepth6, error, "SATDEPTH moved (kerr6.inc)"
 K6DB:   .byte $EE,<SATDEPTH,>SATDEPTH, $2C,$8E,$C0, $2C,$88,$C0, $60     ; K6IN: inc SATDEPTH / bit $C08E / bit $C088 / rts
         .byte $20,<K6IN,>K6IN, $4C,<K6::KMSGC,>K6::KMSGC                ; K6MSG
         .byte $20,<K6IN,>K6IN, $4C,<K6::KAL,>K6::KAL                    ; K6AL
         .byte $20,$0A,$94, $4C,<K6SEL,>K6SEL                            ; K6PUT
 K6DSZ = * - K6DB
 .assert K6DSZ <= 33, error, "the Saturn stubs do not fit in $BCDF-$BCFF"
-K6FNB:  .byte $20,<K6IN,>K6IN, $4C,<K6::KFNC,>K6::KFNC                  ; K6FN
+K6FNB:  .byte $20,<K6IN,>K6IN, $4C,<K6::KDISP,>K6::KDISP                ; K6FN (KDISP: the file name check, or the error filter)
 K6R:    rts
 KPATCH6:
-        lda  SATSELV
-        cmp  #$8F                       ; bank 7 (then bank 6 page 1 holds the code; kScheme leaves it alone)
-        bne  K6R
         ldx  #5
-@n:     lda  K6FNB,x
+@n:     lda  K6FNB,x                    ; K6FN is called by KBOUT too: it has to be there in every case
         sta  K6FN,x
         dex
         bpl  @n
-        lda  K6IN
+        lda  SATSELV
+        cmp  #$8F                       ; bank 7 (then bank 6 page 1 holds the code; kScheme leaves it alone)
+        beq  @ok
+        lda  #$60                       ; no bank 6 code: K6FN is an rts
+        sta  K6FN
+        rts
+@ok:    lda  K6IN
         cmp  #$EE                       ; the stubs are there already (HAN, the rebuild entry)
         beq  @m
-        ldx  #K6DSZ-1
-@z:     lda  K6IN,x                     ; else the bytes must be free (zero)
+        ora  K6IN+K6DSZ-1               ; else the first and the last byte must be free (zero)
         bne  K6R
-        dex
-        bpl  @z
         ldx  #K6DSZ-1
 @c:     lda  K6DB,x
         sta  K6IN,x
@@ -1244,6 +1260,26 @@ KX = KEXIT                          ; the routines in kdos_msg.inc and kdos_cmd.
 KPUTC = COUT                        ; and swap the INIT guard back if KGUARD (the bank-6 copy for Saturn sets them otherwise)
 KGUARD = 1
 .include "kdos_msg.inc"
+; The start-up banner (BN, assembled at $1CC0 in main RAM) runs once, at boot: STATEINIT ends in  jmp PBAN  (it was jmp BN), so
+; HAN, Ctrl-Reset and INIT print no banner again. When BN has run it ends in  jmp KRC  (card on): KRC copies the Korean error
+; filter (segment KERRRES, kerr.inc, in the file behind the banner) over the banner, which is not needed any more, and clears
+; PBANOK. KBOUT calls the filter only while PBANOK is clear.
+PBAN:   bit  PBANOK
+        bpl  @s                     ; the banner has run
+        jmp  BN
+@s:     jmp  KEXIT                  ; the card off and rts, as BN's rts did
+KRC:    ldy  #0
+@a:     lda  __KERRRES_LOAD__,y
+        sta  __KERRRES_RUN__,y
+        iny
+        bne  @a
+        ldy  #<(__KERRRES_SIZE__-$100)
+@b:     lda  __KERRRES_LOAD__+$FF,y
+        sta  __KERRRES_RUN__+$FF,y
+        dey
+        bne  @b
+        sty  PBANOK                 ; Y = 0
+        jmp  KEXIT
 ; INIT's last step in the plain build (DPX jumps here). DOS's routine that prints message X starts at $A702 with
 ; lda $AA3F,x / tax  (BD 3F AA AA). Patch its first three bytes into  jmp KSTUB  if they are exactly that, so that a second INIT
 ; (the HAN command) or another DOS leaves it alone. The Saturn arrangement does not do this yet: its stub has to go through
@@ -2259,7 +2295,7 @@ L_E3DC:
 .if SATURN
         jmp  SatBanner              ; the banner runs once, from a temporary place, only at boot
 .else
-        jmp  BN                     ; E42C  4C C0 1C
+        jmp  PBAN                   ; E42C  4C C0 1C  was jmp BN: the banner runs once, at boot (see PBAN)
 .endif
         .byte $20,$95,$E4,$89,$FE,$20,$95,$E4,$93,$FE,$20,$95,$E4,$2F,$FB,$4C; E42F
         .byte $80,$E4               ; E43F
@@ -6074,36 +6110,42 @@ BN:
         jsr  BLINE                  ; 1CCE  20 60 1D
         jsr  BFREE                  ; 1CD1  20 73 1E
         jsr  BTAIL                  ; 1CD4  20 FD 1D
-        lda  a:$0074                ; 1CD7  AD 74 00
+        lda  $74                ; 1CD7  AD 74 00
         jsr  BHEX                   ; 1CDA  20 58 1E
-        lda  a:HIMEMZ               ; 1CDD  AD 73 00
+        lda  HIMEMZ               ; 1CDD  AD 73 00
         jsr  BHEX                   ; 1CE0  20 58 1E
-        lda  a:HIMEMZ               ; 1CE3  AD 73 00
+        lda  HIMEMZ               ; 1CE3  AD 73 00
         sta  NUM                    ; 1CE6  8D D8 1E
-        lda  a:$0074                ; 1CE9  AD 74 00
+        lda  $74                ; 1CE9  AD 74 00
         sta  NUMHI                  ; 1CEC  8D D9 1E
         jsr  BPAR                   ; 1CEF  20 86 1E
         jsr  BLOM                   ; 1CF2  20 2E 1E
-        lda  a:$006A                ; 1CF5  AD 6A 00
+        lda  $6A                ; 1CF5  AD 6A 00
         jsr  BHEX                   ; 1CF8  20 58 1E
-        lda  a:VARTAB               ; 1CFB  AD 69 00
+        lda  VARTAB               ; 1CFB  AD 69 00
         jsr  BHEX                   ; 1CFE  20 58 1E
-        lda  a:VARTAB               ; 1D01  AD 69 00
+        lda  VARTAB               ; 1D01  AD 69 00
         sta  NUM                    ; 1D04  8D D8 1E
-        lda  a:$006A                ; 1D07  AD 6A 00
+        lda  $6A                ; 1D07  AD 6A 00
         sta  NUMHI                  ; 1D0A  8D D9 1E
         jsr  BPAR                   ; 1D0D  20 86 1E
         lda  #$0D                   ; 1D10  A9 0D
         jsr  BEMIT                  ; 1D12  20 2B 1D
         lda  #$FF                   ; 1D15  A9 FF
-        sta  a:$0075                ; 1D17  8D 75 00
-        sta  a:$0076                ; 1D1A  8D 76 00
+        sta  $75                ; 1D17  8D 75 00
+        sta  $76                ; 1D1A  8D 76 00
         lda  #$00                   ; 1D1D  A9 00
-        sta  a:$00B8                ; 1D1F  8D B8 00
+        sta  $B8                ; 1D1F  8D B8 00
         lda  #$40                   ; 1D22  A9 40
-        sta  a:$00B9                ; 1D24  8D B9 00
+        sta  $B9                ; 1D24  8D B9 00
+.if SATURN
         CARDOFF                     ; 1D27  was sta LCROMRD
         rts                         ; 1D2A  60
+        .res 2, $EA
+.else
+        CARDON                      ; plain card: the banner has run, so its place in main RAM is given to the Korean error
+        jmp  KRC                    ; filter (KERRRES): KRC copies it there and leaves with the card off, as the rts did
+.endif
 BEMIT:
         ora  #$80                   ; 1D2B  09 80
         stx  BTMPX                  ; 1D2D  8E DF 1E
@@ -6186,6 +6228,7 @@ BTAIL:
 BLOM:
         ldy  #<(BLOMS-BLINES)
         jmp  BLINEL
+        .res $191 - (* - BN)        ; the resident part starts at $1E51 (BHEX): K-BASIC calls BHEX, BPAR, BDEC and NUM there
 BHEX:
         sta  HNIB                   ; 1E58  8D E1 1E
         lsr  a                      ; 1E5B  4A
@@ -6480,12 +6523,20 @@ KPUTC = $BCF5                       ; K6PUT
 KGUARD = 0
 .include "kdos_msg.inc"
 .include "kdos_cmd.inc"
+.include "kerr6.inc"
 .endscope
 .endif
 
 ; the second 4K bank of the 16K language card ($D000, bank 1 in card terms): code and tables for the fast English draw. The
 ; loader copies it there on a plain card; a Saturn card does not use it. It is the same in the Saturn build (the file
 ; layout must be the same in both builds, see tools/satpack.py).
+; the Korean Applesoft error filter: in the file, behind the banner; runs at $1CC0 (the banner's place), see PBAN and KRC
+.segment "KERRRES"
+KERRSEG:
+.include "kerr.inc"                 ; (assembled in the Saturn build too, where nothing uses it: the file has the same layout in both)
+        .assert * - KERRSEG <= $191, error, "the Korean error filter does not fit in the banner's place ($1CC0-$1E50)"
+        ; (no padding: the file carries only what the filter uses; KRC copies __KERRRES_SIZE__ bytes)
+
 .segment "LCB1"
 .include "engfast.inc"
 

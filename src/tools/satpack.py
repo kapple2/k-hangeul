@@ -19,7 +19,7 @@ import re
 import sys
 from pathlib import Path
 
-GAP = 4          # runs closer than this are merged
+GAP = 3          # runs closer than this are merged
 
 
 def segments(mapfile: Path) -> dict[str, tuple[int, int, int]]:
@@ -85,7 +85,7 @@ def main() -> None:
     sb = (sat_dir / "K-HANGEUL.bin").read_bytes()
     pm, sm = segments(plain_dir / "driver.map"), segments(sat_dir / "driver.map")
     po = load_offsets(plain_dir / "driver.map")
-    for name in ("LCIMG", "BANNER", "SATDATA"):
+    for name in ("LCIMG", "BANNER", "KERRRES", "SATDATA"):
         assert pm[name][2] == sm[name][2], f"{name} has a different size in the two builds"
     loader_size = pm["LOADER"][2]
     base = 0x0F94
@@ -96,7 +96,8 @@ def main() -> None:
     assert len(pb) == len(sb) and len(pb) >= l_dat.stop - 0, (len(pb), len(sb))
     # the loader code is the same in both builds (SATLOAD = 1); check it
     so = load_offsets(sat_dir / "driver.map")
-    assert so == po, "the segments are not at the same file offsets in the two builds"   # the loaders may differ in data (the HAN entry), not in size
+    common = set(po) & set(so)          # a segment that only one build refers to (KERRRES: the plain build copies it) is not listed in the other map
+    assert all(so[k] == po[k] for k in common) and {"LCIMG", "BANNER", "SATDATA"} <= common, "the segments are not at the same file offsets in the two builds"   # the loaders may differ in data (the HAN entry), not in size
     pimg, simg = pb[l_img], sb[l_img]
     pban, sban = pb[l_ban], sb[l_ban]
     r_img, r_ban = diff_runs(pimg, simg), diff_runs(pban, sban)

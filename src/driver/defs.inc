@@ -264,7 +264,7 @@ STRIPSTRIDE = 42           ; bytes from one pixel row of the strip to the next (
 SATPROBE = $FFF9                ; a byte in every bank that the card detection saves, tags and restores
 SATSIG   = $FFF5                ; 4 bytes: the K-HANGEUL signature "KHG1" in the K-HANGEUL bank (the image ends at $FFF4)
 SATSELV  = $D3FF                ; the last byte of the zero padding at $D14F-$D3FF: the select switch of the K-HANGEUL bank, written by the loader
-SATDATASIZE = 3072              ; room reserved at the end of the file for the patch lists
+SATDATASIZE = 2784              ; room reserved at the end of the file for the patch lists (satpack trims the file after the used part); with MAIN ending at $6000 (cfg) this keeps the file below the FONT12 staging area
 
 ; The fonts. Stock: the Korean font is in main RAM at $0800 (24 bytes a glyph: 12 rows of low byte, high byte). Saturn: the
 ; Korean font is packed to 18 bytes a glyph (12 low bytes, then 6 bytes of two 4-bit high parts each) in the other $D000
@@ -294,6 +294,7 @@ SATHAN  = $9481                 ; the HAN command's entry in main RAM (Saturn)
 SATCATI = $9470                 ; the entry that DOS calls for CATALOG (CATINIT) (Saturn)
 SATCATW = $9571                 ; the entry that DOS calls while CATALOG waits for a key (CATWAIT) (Saturn)
 BANOK = SATBANOK
+PBANOK = $1CBE                  ; plain card: $80 until the start-up banner has run (then 0): main RAM, VARB + $3E, unused there
 BELLDX = BELL
 .if SATURN
 BELLD = VARB + $30            ; INIT copies the stock bell image here; the real bell is SatBell
@@ -301,3 +302,4 @@ BELLD = VARB + $30            ; INIT copies the stock bell image here; the real 
 BELLD = BELL                    ; stock: INIT copies the bell routine to $1CB0
 .endif
 SATREINIT = $D3FA                ; the frozen rebuild entry in the K-HANGEUL bank (page 2): jmp STATEINIT; $D3FD version $01, $D3FE magic $5A
+KPL = $1A                       ; zero page pointer of KPUTS (kerr.inc, kdos_msg.inc): the draw code uses $00-$09, the driver nothing at $1A/$1B

@@ -14,7 +14,19 @@ KMSGC:                          ; entered from KSTUB with the card on; X = messa
         pha
         lda  $AA3F,x
         jmp  KX
-@k:     ldy  KOFF,x
+@k:
+.if KGUARD
+        lda  KOFF,x                 ; the text is in KSTR1 (johab pairs): KPUTS prints it
+        clc
+        adc  #<KSTR1
+        sta  KPL
+        lda  #>KSTR1
+        adc  #0
+        sta  KPL+1
+        jsr  KPUTS
+        jmp  KX                     ; leave (card off), then rts to the caller
+.else
+        ldy  KOFF,x
         cpx  #KMSGK2
         bcs  @b
 @a:     lda  KSTR1,y
@@ -29,7 +41,9 @@ KMSGC:                          ; entered from KSTUB with the card on; X = messa
         iny
         bne  @b
         beq  @e
+.endif
 
+.if !KGUARD
 KMSGK2 = 14                    ; the first message number whose text is in the second table
 KOFF:                           ; start of the Korean text of message 0..15, in KSTR1 or (from KMSGK2 on) KSTR2
         .byte $00,$04,$16,$16,$26,$39,$46,$69,$82,$95,$AC,$BD,$CD,$DC,$00,$1B
@@ -50,3 +64,6 @@ KSTR1:
 KSTR2:
         .byte $8B,$D6,$CD,$C6,$C8,$D2,$CD,$C6,$CF,$C1,$C4,$CC,$81,$A0,$8B,$D3,$CA,$C1,$CE,$81,$A0,$8B,$DA,$CD,$C1,$81,$00   ; 14 PROGRAM TOO LARGE: 프로그램이 너무 큼
         .byte $8B,$D7,$CC,$D2,$D7,$CA,$D1,$81,$A0,$8B,$C1,$D5,$C4,$C6,$D5,$C4,$81,$A0,$8B,$C4,$CB,$D3,$CC,$C1,$81,$00   ; 15 NOT DIRECT COMMAND: 직접 명령 아님
+.else
+.include "kdos_johab.inc"
+.endif
