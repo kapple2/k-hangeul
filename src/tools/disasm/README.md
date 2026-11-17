@@ -7,7 +7,7 @@
 ### 왜 바로 실행할 수 없나
 
 - 입력으로 옛 한글2 이미지(`HANGEUL.bin`)와 그 목록(`HANGEUL.lst`)이 필요합니다. 둘 다 한글2 원본에서 온 것이라 이 저장소에 넣지 않았습니다.
-- `analyze.py`와 `disasm.py`는 원래 개발 폴더의 경로(`work/hangeul2/`)를 찾습니다. 그 파일을 같은 위치에 두어야 합니다.
+- `analyze.py`와 `disasm.py`는 개발 폴더의 경로(`work/hangeul2/`)를 찾습니다. 그 폴더는 저장소에 없으므로, 실행하려면 원본 한글2 파일을 같은 위치에 두어야 합니다.
 
 
 ### 다른 파일을 풀어 보고 싶을 때
@@ -46,7 +46,7 @@ The three files in this folder (`opcodes.py`, `analyze.py`, `disasm.py`) are the
 ### Why they cannot run as they are
 
 - They need the old Hangeul2 image (`HANGEUL.bin`) and its listing (`HANGEUL.lst`) as input. Both come from the original Hangeul2 program, so they are not in this repository.
-- `analyze.py` and `disasm.py` look for files in the development folder (`work/hangeul2/`). Those files would have to be in the same place.
+- `analyze.py` and `disasm.py` look for files in the development folder (`work/hangeul2/`), which is not in this repository. To run them, put the original Hangeul2 files in that place.
 
 
 ### To disassemble another program

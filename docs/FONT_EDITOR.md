@@ -19,7 +19,7 @@
 
 ## 새 글꼴 쓰기
 
-편집기는 `font.json`만 바꿉니다. 디스크에 올리려면 프로젝트 폴더에서 `make_all.bat`을 실행하세요(결과는 `DIST\K-HANGEUL.DSK`). 또는 `src\driver`에서 `build.bat disk`를 실행하세요. 둘 다 `font.json`을 `FONT12.bin`(한글)과 `FONT6X10.bin`(영문, 디스크 파일 `FONT6X10`)으로 바꾸고 드라이버를 다시 만듭니다.
+편집기는 `font.json`만 바꿉니다. 디스크에 올리려면 저장소 맨 위 폴더(`DIST-github`)에서 `build.bat`을 실행하세요(결과는 `disk\K-HANGEUL.DSK`, 자세한 것은 `BUILD.md`). 또는 `src\driver`에서 `build.bat`을 실행하세요. 그러면 `font.json`이 `FONT12.bin`(한글)과 `FONT6X10.bin`(영문, 디스크 파일 `FONT6X10`)으로 바뀌고 드라이버가 다시 만들어집니다. `build.bat disk`는 그 파일들을 작업용 디스크 `disk\NEWHANGEUL.DSK`에도 넣습니다(이 파일은 저장소에 없습니다).
 
 
 ## 처음부터 같았던 영문 글리프
@@ -51,7 +51,7 @@ The preview text is yours to change. A Hangul syllable takes 12 pixels and an En
 
 ## Using the new font
 
-The editor only changes `font.json`. To put it on the disk run `make_all.bat` in the project folder (the result is `DIST\K-HANGEUL.DSK`), or `build.bat disk` in `src\driver`. Both turn `font.json` into `FONT12.bin` (Hangul) and `FONT6X10.bin` (English; the disk file `FONT6X10`) and rebuild the driver.
+The editor only changes `font.json`. To put it on the disk, run `build.bat` in the top folder of the repository (`DIST-github`; see `BUILD_en.md`). The result is `disk\K-HANGEUL.DSK`. Or run `build.bat` in `src\driver`: it turns `font.json` into `FONT12.bin` (Hangul) and `FONT6X10.bin` (English; the disk file `FONT6X10`) and rebuilds the driver. `build.bat disk` also copies them to the working disk `disk\NEWHANGEUL.DSK`, which is not in the repository.
 
 
 ## English glyphs that were the same

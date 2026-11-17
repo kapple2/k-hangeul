@@ -92,7 +92,7 @@ build.bat
 `build.bat`이 하는 일:
 
 1. `src\make_all.bat`을 실행합니다.
-   1. 드라이버를 만듭니다. `src\driver\fontgen.py`가 `src\fonteditor\font.json`을 `FONT12.bin`(한글)과 `FONT6X10.bin`(영문)으로 바꾸고, cc65가 `driver.s`를 `K-HANGEUL.bin`으로 만듭니다.
+   1. 드라이버를 만듭니다. `src\driver\fontgen.py`가 `src\fonteditor\font.json`을 `FONT12.bin`(한글)과 `FONT6X10.bin`(영문)으로 바꾸고, cc65가 `driver.s`를 `K-HANGEUL.bin`으로 만듭니다. `driver.s`는 세 번 어셈블합니다: `build-stock\`(기존 드라이버, 바뀐 것이 없는지 확인하는 용도로만 둡니다), `build-sat\`(Saturn 배치), `build\`(배포하는 드라이버). 그다음 `src\tools\satpack.py`가 뒤의 둘의 바이트 차이를 `build\K-HANGEUL.bin`의 끝에 적고, 로더는 Saturn 카드를 찾았을 때만 그 차이를 적용합니다(`docs/MEMORY_LAYOUT.md` 참고).
    2. `TYPE`, `TYPEC`, `STYPE`, `STYPEC`를 만듭니다.
    3. `src\tools\mkdist.py`가 예제 글(`src\samples\utf8txt\`)을 N바이트 파일로 바꾸고, 빈 DOS 3.3 디스크(`disk\dos33blank.dsk`)의 사본에 프로그램과 예제를 넣어 `DIST\K-HANGEUL.DSK`를 만듭니다.
 2. `DIST\K-HANGEUL.DSK`를 `disk\K-HANGEUL.DSK`로 복사합니다.

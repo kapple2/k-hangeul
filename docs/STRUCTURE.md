@@ -34,7 +34,8 @@ src/
   fonteditor/                 글꼴 편집기와 font.json
   samples/                    디스크의 예제 글 (N바이트)
     utf8txt/                  예제 글의 UTF-8 사본
-  tools/                      도구 (mkdist.py, nbyte.py, render/, disasm/)
+  legacy/                     옛 도구 (NPRINT)
+  tools/                      도구 (mkdist.py, nbyte.py, render/, disasm/, oneoff/)
 ```
 
 
@@ -44,7 +45,7 @@ src/
 2. `src/driver/fontgen.py`가 `src/fonteditor/font.json`을 글꼴 파일로 바꿉니다.
 3. `src/tools/mkdist.py`가 먼저 `src/samples/utf8txt/`에서 N바이트 예제 파일을 만들고, 프로그램과 예제 글을 `disk/dos33blank.dsk`의 사본에 넣어 `DIST\K-HANGEUL.DSK`를 만듭니다. 설명서도 `DIST\docs\`에 복사합니다.
 
-`make_all.bat`은 1~3을 한 번에 합니다. 최종 디스크를 `disk/`에도 넣으려면 빌드 후 `DIST\K-HANGEUL.DSK`를 `disk\`로 복사하세요.
+`build.bat`(또는 `src\make_all.bat`)은 1~3을 한 번에 하고, 결과를 `disk\K-HANGEUL.DSK`로 복사합니다.
 
 
 ### 무엇을 고치면 되나
@@ -104,7 +105,8 @@ src/
   fonteditor/                 the font editor and font.json
   samples/                    sample text for the disk (N-byte)
     utf8txt/                  UTF-8 copies of the sample text
-  tools/                      tools (mkdist.py, nbyte.py, render/, disasm/)
+  legacy/                     old tools (NPRINT)
+  tools/                      tools (mkdist.py, nbyte.py, render/, disasm/, oneoff/)
 ```
 
 
@@ -114,7 +116,7 @@ src/
 2. `src/driver/fontgen.py` turns `src/fonteditor/font.json` into the font files.
 3. `src/tools/mkdist.py` first makes the N-byte sample files from `src/samples/utf8txt/`, then puts the programs and the sample text on a copy of `disk/dos33blank.dsk`, making `DIST\K-HANGEUL.DSK`. It also copies the documents to `DIST\docs\`.
 
-`make_all.bat` does steps 1 to 3 at once. To keep the final disk in `disk/` as well, copy `DIST\K-HANGEUL.DSK` to `disk\` after the build.
+`build.bat` (or `src\make_all.bat`) does steps 1 to 3 at once and copies the result to `disk\K-HANGEUL.DSK`.
 
 
 ### Where to make a change

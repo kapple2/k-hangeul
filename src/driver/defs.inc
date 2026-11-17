@@ -1,5 +1,18 @@
 ; Names for zero page, I/O, ROM, the driver's main RAM variables and its state.
 
+; SATURN = 0 builds the stock driver (this is the build that is shipped). SATURN = 1 is for the Saturn 128KB card
+; arrangement (see docs/MEMORY_LAYOUT.md, draft). Nothing in the source tests it yet, so both give the same output.
+; Set it from the command line with  ca65 -D SATURN=1 ...  (build.bat sat does this).
+; SATLOAD = 1 makes the loader look for a Saturn card and, if there is one, patch the driver for it (the patch list is
+; appended to the file by tools/satpack.py). SATLOAD = 0 is the stock loader (build-stock, the regression baseline).
+.ifndef SATLOAD
+SATLOAD = 0
+.endif
+.ifndef SATURN
+SATURN = 0
+.endif
+SATSELK = $C08F                 ; the switch that selects the K-HANGEUL bank: bank 7 (the top bank of a 128KB Saturn). $C084+n for banks 0-3, $C088+n for 4-7
+
 P0L = $0000
 P0H = $0001
 P1L = $0002
@@ -25,42 +38,61 @@ VARTAB = $0069
 FRETOP = $006F
 HIMEMZ = $0073
 INBUF = $0200
+; The text buffer, the row flags and the variables. Stock: in main RAM under the screen. Saturn: in the bank, in the page the
+; driver runs in (the driver then runs with the card write enabled). GLY and GLYHI are in $E000-$FFFF because they are written
+; while the other $D000 page is selected. BELL (a routine that calls the ROM), SHMACH and NOPR stay in main RAM for now.
+.if SATURN
+BUF = $DC2A                     ; 736 bytes, 16 rows of 46; right behind the packed English font
+FLAGS = BUF + $2E0              ; 32 bytes
+VARB = $DF2A                    ; 64 bytes: the stock variables $1C80-$1CBF
+BLITB = $DF6A                   ; 11 bytes: the stock blit variables $1FF0-$1FFA
+GLY = $E000 + SATTAIL - 24
+GLYHI = GLY + 12
+.else
 BUF = $1980
 FLAGS = $1C60
-C = $1C86
-V = $1C87
-T = $1C88
-CL = $1C89
-TMP = $1C8A
-SUMLO = $1C8B
-SUMHI = $1C8C
-IDX = $1C8D
+VARB = $1C80
+BLITB = $1FF0
 GLY = $1C90
 GLYHI = $1C9C
-MODE = $1CA8
-BOFF = $1CA9
-TMP2 = $1CAA
-HIBIT = $1CAB
-MASKV = $1CAC
-PIXON = $1CAD
-OLD = $1CAE
-COUNT = $1CAF
+.endif
+C = VARB + 6
+V = VARB + 7
+T = VARB + 8
+CL = VARB + 9
+TMP = VARB + 10
+SUMLO = VARB + 11
+SUMHI = VARB + 12
+IDX = VARB + 13
+MODE = VARB + $28
+BOFF = VARB + $29
+TMP2 = VARB + $2A
+HIBIT = VARB + $2B
+MASKV = VARB + $2C
+PIXON = VARB + $2D
+OLD = VARB + $2E
+COUNT = VARB + $2F
 BELL = $1CB0
-MODESAVE = $1CBA
-MODECAP = $1CBB
-CASEMODE = $1CBC
-M0 = $1FF0
-M1 = $1FF1
-M2 = $1FF2
-NM0 = $1FF3
-NM1 = $1FF4
-NM2 = $1FF5
-NB = $1FF6
-TV = $1FF7
-ROWI = $1FF8
-IXL = $1FF9
-IXH = $1FFA
-NOPR = $1FFB
+MODESAVE = VARB + $3A
+MODECAP = VARB + $3B
+CASEMODE = VARB + $3C
+M0 = BLITB
+M1 = BLITB + 1
+M2 = BLITB + 2
+NM0 = BLITB + 3
+NM1 = BLITB + 4
+NM2 = BLITB + 5
+NB = BLITB + 6
+TV = BLITB + 7
+ROWI = BLITB + 8
+IXL = BLITB + 9
+IXH = BLITB + 10
+NOPR = NOPRA
+.if SATURN
+NOPRA = BLITB + 11
+.else
+NOPRA = $1FFB
+.endif
 KBD = $C000
 KBDSTRB = $C010
 SPKR = $C030
@@ -78,6 +110,9 @@ LCROMRD = $C082
 LCRAMRW = $C083
 LCRAMRD2 = $C088
 LCRAMRW2 = $C08B
+LCB1RD = $C088                  ; plain card: the second 4K bank at $D000, RAM read (the first bank is $C080)
+LCB1WR = $C089                  ; the same, ROM read and RAM write enabled (two reads)
+TABS = $D880                    ; bank 1: the shift tables made by the loader (engfast.inc, GenTabs); the code is below
 MON_BELL1 = $FBDD
 MON_HOME = $FC58
 MON_RDKEY = $FD0C
@@ -128,7 +163,7 @@ S_0565 = $9465            ; was $0565 in the text page
 S_0566 = $9466            ; was $0566 in the text page
 S_0567 = $9467            ; was $0567 in the text page
 S_0577 = $9477            ; was $0577 in the text page
-S_05D0 = $9580            ; was $05D0: 46 bytes (one per column), moved clear of the other state
+S_05D0 = $9580            ; was $05D0: 41 bytes used (one per column and one more), moved clear of the other state
 S_065B = $9488            ; was $065B in the text page
 S_065C = $9489            ; was $065C in the text page
 S_065D = $948A            ; was $065D in the text page
@@ -168,9 +203,16 @@ S_06C4 = $94B9            ; was $06C4 in the text page
 S_06C5 = $94BA            ; was $06C5 in the text page
 S_06C6 = $94BB            ; was $06C6 in the text page
 S_06C7 = $94BC            ; was $06C7 in the text page
-S_06D0 = $95AE            ; was $06D0: 46 bytes (one per column)
+S_06D0 = $95AE            ; was $06D0: the type-ahead ring, 32 bytes ($95AE-$95CD)
 S_0728 = $94C9            ; was $0728 in the text page
 S_0750 = $94F1            ; was $0750 in the text page
+STOPCV  = $94F1            ; (the glyph buffer S_0750-S_076F is dead: nothing reads it) the row where the fetch of a line stops, $A0 = none
+STOPCH  = $94F2            ; its column
+CRB     = $94F3            ; CLRROW's scratch bytes (the same dead glyph buffer)
+CRM     = $94F4
+ENDV    = $94F5            ; where the typed text of the line being edited ends (row; $A0 = not known)
+ENDH    = $94F6            ; (column)
+LESC    = $94F7            ; not 0: the last key was ESC
 S_0751 = $94F2            ; was $0751 in the text page
 S_0759 = $94FA            ; was $0759 in the text page
 S_075F = $9500            ; was $075F in the text page
@@ -204,7 +246,12 @@ S_06BF = $94B4            ; was $06BF in the text page
 S_056B = $946B            ; was $056B in the text page
 ENGSRC = $7200            ; where HELLO loads FONT6X10, 2048 bytes
 SW2 = $C063                ; pushbutton 2: the Shift key mod (bit 7 set while Shift is held)
-SHMACH = $1CBD             ; bit 7 set on an Apple IIe, IIc or IIgs (ROM ID $FBB3 = $06), found by the loader; $1CBD-$1CBF were unused
+SHMACHL = $1CBD            ; bit 7 set on an Apple IIe, IIc or IIgs (ROM ID $FBB3 = $06), found by the loader; $1CBD-$1CBF were unused
+.if SATURN
+SHMACH = VARB + $3D          ; the loader copies it into the bank
+.else
+SHMACH = SHMACHL
+.endif
 OAPPLE = $C061             ; pushbutton 0 = Open-Apple on a IIe-family machine (bit 7 set while it is held)
 SHIDLE = $95DC             ; bit 7 of $C063 at start-up (Shift not held); the state area is filled with $A0 before INIT sets it
 STRIPF = $95DD             ; bit 6 set ($40) while the glyph drawing goes to the strip buffer (STYPE); 0 or $A0 otherwise
@@ -212,3 +259,47 @@ STRIPLO = $95DE            ; address of the strip buffer (set by STYPE)
 STRIPHI = $95DF
 STRIPVEC = $95E0           ; address of the routine called at the end of every row in strip mode (2 bytes)
 STRIPSTRIDE = 42           ; bytes from one pixel row of the strip to the next (40 and room for a glyph's third byte)
+
+; Saturn card, loader and driver (docs/MEMORY_LAYOUT.md, draft)
+SATPROBE = $FFF9                ; a byte in every bank that the card detection saves, tags and restores
+SATSIG   = $FFF5                ; 4 bytes: the K-HANGEUL signature "KHG1" in the K-HANGEUL bank (the image ends at $FFF4)
+SATSELV  = $D3FF                ; the last byte of the zero padding at $D14F-$D3FF: the select switch of the K-HANGEUL bank, written by the loader
+SATDATASIZE = 2784              ; room reserved at the end of the file for the patch lists (satpack trims the file after the used part); with MAIN ending at $6000 (cfg) this keeps the file below the FONT12 staging area
+
+; The fonts. Stock: the Korean font is in main RAM at $0800 (24 bytes a glyph: 12 rows of low byte, high byte). Saturn: the
+; Korean font is packed to 18 bytes a glyph (12 low bytes, then 6 bytes of two 4-bit high parts each) in the other $D000
+; page of the bank, which is selected only while a glyph is read. The shift masks and the English font stay in the page the
+; driver runs in. The English font is 10 bytes a glyph (stock: 16).
+.if SATURN
+FCHOB   = $D000                 ; first (initial consonant) glyph; 114 glyphs
+FJUNGB  = $D804                 ; first vowel glyph; 42 glyphs
+FJONGB  = $DAF8                 ; first final consonant glyph; 27 glyphs
+FZEROG  = $DCDE                 ; the empty glyph (18 zero bytes)
+FONTEND = $DCF0                 ; the end of the packed font
+FMASK   = $D3D0                 ; the 42 shift mask bytes, in the zero padding of the driver page
+SATTAIL = 96                    ; bytes at $E000-$E05F, the end of the old English font area, hold the glyph reading code
+.else
+FCHOB   = $0800
+FJUNGB  = $12B0
+FJONGB  = $16A0
+FZEROG  = $1928
+FMASK   = $1940
+.endif
+
+; Saturn, stage 3: the variables of the bank that the loader (assembled for any card) also has to know
+SATVARB = $DF2A                 ; VARB of the Saturn arrangement: the loader (assembled for any card) writes the machine flag and the banner flag there
+SHMACHB = SATVARB + $3D         ; the machine flag in the bank
+SATBANOK = SATVARB + $3E        ; 1 while the start-up banner is still waiting to be shown
+SATHAN  = $9481                 ; the HAN command's entry in main RAM (Saturn)
+SATCATI = $9470                 ; the entry that DOS calls for CATALOG (CATINIT) (Saturn)
+SATCATW = $9571                 ; the entry that DOS calls while CATALOG waits for a key (CATWAIT) (Saturn)
+BANOK = SATBANOK
+PBANOK = $1CBE                  ; plain card: $80 until the start-up banner has run (then 0): main RAM, VARB + $3E, unused there
+BELLDX = BELL
+.if SATURN
+BELLD = VARB + $30            ; INIT copies the stock bell image here; the real bell is SatBell
+.else
+BELLD = BELL                    ; stock: INIT copies the bell routine to $1CB0
+.endif
+SATREINIT = $D3FA                ; the frozen rebuild entry in the K-HANGEUL bank (page 2): jmp STATEINIT; $D3FD version $01, $D3FE magic $5A
+KPL = $1A                       ; zero page pointer of KPUTS (kerr.inc, kdos_msg.inc): the draw code uses $00-$09, the driver nothing at $1A/$1B

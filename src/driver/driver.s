@@ -32,10 +32,59 @@
 ; ===========================================================================
 
 .include "defs.inc"
+.include "version.inc"                ; VERSION_TXT, made from the VERSION file by tools/mkversion.py
 
 .import __LCIMG_LOAD__, __LCIMG_SIZE__
+.import __LCB1_LOAD__, __LCB1_SIZE__
 .import __BANNER_LOAD__, __BANNER_RUN__, __BANNER_SIZE__
+.import __KERRRES_LOAD__, __KERRRES_RUN__, __KERRRES_SIZE__
+.if SATLOAD
+.import __SATDATA_LOAD__, __BANK6_LOAD__, __BANK6_SIZE__
+.endif
 .export COUT, BHEX, BPAR, BDEC, NUM          ; the labels KBASIC calls (written to the label file by ld65 -Ln)
+
+; ---------------------------------------------------------------------------
+; Entering and leaving the driver from main RAM (the banner code, the DOS patches). SATURN = 0: the stock
+; soft switches. SATURN = 1: the trampoline in main RAM (SatEnter selects the K-HANGEUL bank and maps the
+; driver, SatLeave1 restores the caller's bank and card state from SATSTATE). Both keep A, X, Y and the flags.
+; The _LDA forms are the sites that read the switch with LDA in the stock code (same bytes).
+; ---------------------------------------------------------------------------
+.if SATURN
+BELLC = SatBell                 ; the bell is in the bank (it needs no ROM)
+CATWAIT = SATCATW               ; the entries that DOS calls are small stubs in the $9400 block
+CATINIT = SATCATI
+HANMAIN = SATHAN
+.else
+BELLC = BELL
+.endif
+.macro CARDON
+.if SATURN
+        jsr  SatEnter
+.else
+        sta  LCRAMRD
+.endif
+.endmacro
+.macro CARDOFF
+.if SATURN
+        jsr  SatLeave1
+.else
+        sta  LCROMRD
+.endif
+.endmacro
+.macro CARDON_LDA
+.if SATURN
+        jsr  SatEnter
+.else
+        lda  LCRAMRD
+.endif
+.endmacro
+.macro CARDOFF_LDA
+.if SATURN
+        jsr  SatLeave1
+.else
+        lda  LCROMRD
+.endif
+.endmacro
 
 ; ---------------------------------------------------------------------------
 ; Loader. DOS BRUN loads the whole file at $0F94 and starts here.
@@ -47,15 +96,16 @@
 ; ---------------------------------------------------------------------------
 .segment "LOADER"
 Loader:
+.if SATLOAD
+        jsr  SatDetect              ; A = the switch that selects the top Saturn bank, 0 if there is no Saturn card
+        sta  SatSelByte
+        beq  @nosat
+        sta  @selop+1               ; select that bank: everything below goes into it
+@selop: bit  $C08F
+@nosat:
+.endif
         lda  LCROMWR                ; $C081 twice: language card RAM write enabled
         lda  LCROMWR
-        ldx  #$00                   ; the ROM is visible here: $FBB3 is $06 on a IIe, IIc and IIgs ($EA on a II Plus)
-        lda  $FBB3
-        cmp  #$06
-        bne  @notie
-        ldx  #$80
-@notie:
-        stx  SHMACH                 ; those machines have no readable Shift key: SHFIX uses Open-Apple there
         lda  #<__LCIMG_LOAD__
         sta  $06
         lda  #>__LCIMG_LOAD__
@@ -68,33 +118,166 @@ Loader:
         sta  $FF
         ldx  #<__LCIMG_SIZE__
         jsr  CopyBytes
+.if SATLOAD
+        lda  SatSelByte
+        bne  @nob1                  ; a Saturn card: the second-bank code (segment LCB1) is for the plain card only
+.endif
+        lda  LCB1WR                 ; $C089 twice: ROM read, language card RAM write enabled, the second 4K bank ($D000)
+        lda  LCB1WR
+        lda  #<__LCB1_LOAD__        ; the fast English draw (engfast.inc) goes to $D000 of that bank
+        sta  $06
+        lda  #>__LCB1_LOAD__
+        sta  $07
+        lda  #$00
+        sta  $08
+        lda  #$D0
+        sta  $09
+        lda  #>__LCB1_SIZE__
+        sta  $FF
+        ldx  #<__LCB1_SIZE__
+        jsr  CopyBytes
+        jsr  GenTabs                ; the shift tables of engfast.inc, into the part of bank 1 after the code
+        lda  #$80
+        sta  PBANOK                 ; plain card: the start-up banner is still to run (until then the Korean error filter is not there)
+        lda  LCROMWR                ; and back to the first bank, write enabled, ROM visible (as before)
+        lda  LCROMWR
+@nob1:
+        ldx  #$00                   ; the ROM is visible here: $FBB3 is $06 on a IIe, IIc and IIgs ($EA on a II Plus)
+        lda  $FBB3                  ; (after the copy: $1CBD is inside the staged image, and storing there before zeroed a byte of
+        cmp  #$06                   ; it: the high byte of the stock INIT handler address in KSWT, or other code if the loader grows)
+        bne  @notie
+        ldx  #$80
+@notie:
+        stx  SHMACHL                ; those machines have no readable Shift key: SHFIX uses Open-Apple there
         ldx  #$05
 @patch1:
         lda  VecData,x              ; reset, NMI and IRQ vectors into $FFFA-$FFFF
         sta  $FFFA,x
-        lda  DosPatch1,x            ; "sta $C080 / jmp INIT" into DOS at $A55B
-        sta  $A55B,x
         dex
         bpl  @patch1
+        lda  $03F2                  ; Ctrl-Reset goes to HANRST (start the driver again, then DOS's warm start), but only if the
+        cmp  #<$9DBF                ; reset vector is still DOS's own warm start: anything else is left alone
+        bne  @norst
+        lda  $03F3
+        cmp  #>$9DBF
+        bne  @norst
+        lda  #<HANRST
+        ldx  #>HANRST
+.if SATLOAD
+        ldy  SatSelByte
+        beq  @rst                   ; no Saturn card: HANRST is in the banner
+        lda  $A5A1                  ; Saturn: the same six bytes go into the unused INT code of DOS, if it is stock there
+        cmp  #$B2
+        bne  @norst
+        ldy  #$05
+@rstc:  lda  RstStub,y
+        sta  $A5A1,y
+        dey
+        bpl  @rstc
+        lda  #$A1
+        ldx  #$A5
+.endif
+@rst:   sta  $03F2
+        stx  $03F3
+        txa
+        eor  #$A5                   ; the power-up byte that makes the ROM take the vector
+        sta  $03F4
+@norst:
         ldx  #$02
 @patch2:
         lda  DosPatch2,x            ; "HAN", a command name in DOS's table at $A8F1
         sta  $A8F1,x
-        lda  DosPatch3,x            ; at $A59E: bne $A55B, so the command HAN runs DosPatch1
+        lda  DosPatch3,x            ; at $A59E (the handler of INT, which HAN replaces): jmp HANMAIN. DOS's INIT code is left
         sta  $A59E,x
         dex
         bpl  @patch2
+.if SATLOAD
+        jsr  SatFinish              ; Saturn: patch the driver and the banner for it, write the signature
+.endif
         lda  LCRAMRW                ; $C083 twice: language card RAM read and write; INIT write protects it
         lda  LCRAMRW
         jmp  INIT
-DosPatch1:                          ; copied into DOS: jmp HANMAIN (the HAN command), padded with NOPs
-        .byte $4C,<HANMAIN,>HANMAIN,$EA,$EA,$EA
 VecData:
         .byte $FB,$03,$5F,$FA,$38,$FA
 DosPatch2:
         .byte $48,$41,$CE
-DosPatch3:
-        .byte $D0,$BB,$20
+RstStub:                            ; Saturn: jsr $A59E (HAN) / jmp $9DBF (DOS's warm start), written at $A5A1
+        .byte $20,$9E,$A5,$4C,$BF,$9D
+DosPatch3:                          ; (as it is: the plain card guards INIT, see KINITC; the Saturn card makes INIT run HAN)
+        .byte $4C,<HANMAIN,>HANMAIN
+
+; The shift tables of engfast.inc (see the comment at its end), made into bank 1 at TABS and after. The loader runs from main
+; RAM, so the operands of the four stores are patched for each k. $FA-$FC: the value being shifted, $FD: k.
+GenTabs:
+        ldx  #$00
+@k:     stx  $FD
+        txa
+        clc
+        adc  #>TABS                 ; (the four tables of block k start at TABS + 256 * k + 64 * i: not necessarily on a page,
+        sta  @s0+2                  ; so the page of each store is worked out on its own)
+        txa
+        clc
+        adc  #>(TABS+64)
+        sta  @s1+2
+        txa
+        clc
+        adc  #>(TABS+128)
+        sta  @s2+2
+        txa
+        clc
+        adc  #>(TABS+192)
+        sta  @s3+2
+        ldy  #$00
+@v:     sty  $FA                    ; w = v
+        lda  #$00
+        sta  $FB
+        sta  $FC
+        ldx  $FD
+        beq  @n0
+@sl:    asl  $FA
+        rol  $FB
+        dex
+        bne  @sl                    ; w = v << k
+@n0:    lda  $FA
+        and  #$7F
+@s0:    sta  TABS,y                 ; B0_k
+        lda  $FA
+        asl  a
+        lda  $FB
+        rol  a
+@s1:    sta  TABS+64,y              ; B1_k = (v << k) >> 7
+        ldx  #$06                   ; w = v << (k + 6), three bytes
+@sh:    asl  $FA
+        rol  $FB
+        rol  $FC
+        dex
+        bne  @sh
+        lda  $FD
+        bne  @nh0
+        lda  $FA                    ; k = 0: HB0 = (v << 6) and $7F
+        and  #$7F
+        sta  TABS+7*256,y
+@nh0:   lda  $FA
+        asl  a
+        lda  $FB
+        rol  a
+        and  #$7F
+@s2:    sta  TABS+128,y             ; HB1_k = ((v << (k + 6)) >> 7) and $7F
+        lda  $FB
+        asl  a
+        rol  $FC
+        asl  a
+        rol  $FC
+        lda  $FC
+@s3:    sta  TABS+192,y             ; HB2_k = (v << (k + 6)) >> 14
+        iny
+        cpy  #$40
+        bne  @v
+        ldx  $FD
+        inx
+        cpx  #$07
+        bne  @k
+        rts
 
 ; copy X + 256 * ($FF - 1) bytes from ($06) to ($08)
 CopyBytes:
@@ -115,6 +298,307 @@ CopyBytes:
         dec  $FF
         bne  @loop
         rts
+
+.if SATLOAD
+; ---------------------------------------------------------------------------
+; Saturn card. SatDetect finds the banks the way kScheme does (a tag in every bank 1-7, then each must still hold its own
+; tag), but it saves every byte first and puts it back afterwards, last bank first (on a plain Language Card all seven
+; "banks" are the same RAM, and only the reverse order restores it). It returns, in A, the switch that selects the top bank
+; ($C084+n for banks 0-3, $C088+n for banks 4-7) or 0 for a card without banks.
+; SatFinish applies the patch lists to the driver now in that bank and to the banner source, sets the bank digit in the
+; banner text, writes SATSELV and the signature.
+; ---------------------------------------------------------------------------
+SatDetect:
+        ldx  #$01
+@w:     jsr  SatSelX
+        jsr  SatRW
+        lda  SATPROBE
+        sta  SatSave,x
+        txa
+        ora  #$B0
+        sta  SATPROBE
+        inx
+        cpx  #$08
+        bne  @w
+        ldx  #$01
+@v:     jsr  SatSelX
+        jsr  SatRW
+        txa
+        ora  #$B0
+        cmp  SATPROBE
+        bne  @vd
+        inx
+        cpx  #$08
+        bne  @v
+@vd:    dex                         ; the number of banks above bank 0 that kept their tag
+        stx  SatN
+        ldx  #$07
+@r:     jsr  SatSelX
+        jsr  SatRW
+        lda  SatSave,x
+        sta  SATPROBE
+        dex
+        bne  @r
+        lda  $C084                  ; bank 0 again (on a plain card this is its $D000 page 2, harmless)
+        lda  LCROMRD                ; ROM visible, as the stock loader expects
+        lda  SatN
+        beq  @none
+        cmp  #$04
+        bcc  @lo
+        clc
+        adc  #$88
+        rts
+@lo:    clc
+        adc  #$84
+@none:  rts
+SatRW:                              ; this bank's $D000 page 2, RAM read and write
+        lda  LCRAMRW
+        lda  LCRAMRW
+        rts
+SatSelX:                            ; X = bank 1-7: select it
+        txa
+        cpx  #$04
+        bcc  @a
+        clc
+        adc  #$04
+@a:     clc
+        adc  #$84
+        sta  @s+1
+@s:     lda  $C084
+        rts
+; apply a patch list: ($EB) = the list, ($ED) = the address of the region. A record is: offset (2 bytes, low first),
+; length (1 byte, 1-255), the bytes. The list ends with offset $FFFF. ($EB) is left behind the end.
+ApplyList:
+@next:  ldy  #$00
+        lda  ($EB),y
+        tax
+        iny
+        lda  ($EB),y
+        cmp  #$FF
+        bne  @rec
+        cpx  #$FF
+        bne  @rec
+        lda  $EB                    ; the end: step over the two bytes
+        clc
+        adc  #$02
+        sta  $EB
+        bcc  @e
+        inc  $EC
+@e:     rts
+@rec:   pha
+        txa
+        clc
+        adc  $ED
+        sta  $FA
+        pla
+        adc  $EE
+        sta  $FB                    ; the destination
+        iny
+        lda  ($EB),y
+        sta  $EF                    ; the length
+        lda  $EB
+        clc
+        adc  #$03
+        sta  $EB
+        bcc  @s1
+        inc  $EC
+@s1:    ldy  #$00
+@cp:    lda  ($EB),y
+        sta  ($FA),y
+        iny
+        cpy  $EF
+        bne  @cp
+        lda  $EB
+        clc
+        adc  $EF
+        sta  $EB
+        bcc  @n2
+        inc  $EC
+@n2:    jmp  @next
+SatFinish:
+        lda  SatSelByte
+        bne  @sf
+        jmp  @r
+@sf:
+        lda  #<__SATDATA_LOAD__
+        sta  $EB
+        lda  #>__SATDATA_LOAD__
+        sta  $EC
+        lda  #$00
+        sta  $ED
+        lda  #$D0
+        sta  $EE
+        jsr  ApplyList              ; the driver, in the bank
+        lda  #<__BANNER_LOAD__
+        sta  $ED
+        lda  #>__BANNER_LOAD__
+        sta  $EE
+        jsr  ApplyList              ; the banner source, in main RAM
+        lda  $EB                    ; $EB/$EC now point at the offset of the bank digit: the packing below uses them, so keep them
+        pha
+        lda  $EC
+        pha
+        jsr  SatPackEn              ; the English font from ENGSRC into ENGFONT (page 2 is write enabled)
+        lda  $C089                  ; page 1 of the bank, write enabled
+        lda  $C089
+        jsr  SatPackKo              ; the Korean font from $6000 into page 1, packed
+        lda  LCROMWR                ; page 2 again, write enabled
+        lda  LCROMWR
+        pla                         ; then the offset of the bank digit in the banner text
+        sta  $EC
+        pla
+        sta  $EB
+        ldy  #$00
+        lda  ($EB),y
+        clc
+        adc  #<__BANNER_LOAD__
+        sta  $FA
+        iny
+        lda  ($EB),y
+        adc  #>__BANNER_LOAD__
+        sta  $FB
+        lda  SatN
+        ora  #$30
+        ldy  #$00
+        sta  ($FA),y
+        lda  SHMACHL                ; the machine flag, found at the top of the loader, into the bank
+        sta  SHMACHB
+        lda  #$01                   ; the start-up banner is still to be shown
+        sta  SATBANOK
+        lda  #<SATHAN               ; the HAN command: DOS jumps to its entry in the $9400 block
+        sta  $A59F
+        sta  $A55C                  ; and INIT stays the HAN command on Saturn (jmp SATHAN at $A55B): the INIT guard that
+        lda  #>SATHAN               ; puts stock DOS back while INIT writes a disk is plain-card only for now
+        sta  $A5A0
+        sta  $A55D
+        lda  #$4C
+        sta  $A55B
+        lda  SatSelByte
+        sta  SATSELV
+        ldx  #$03
+@sg:    lda  SatSig,x
+        sta  SATSIG,x
+        dex
+        bpl  @sg
+        lda  SatSelByte             ; the driver in bank 7: the Korean DOS code into bank 6, $D000 page 1
+        cmp  #$8F
+        bne  @r
+        lda  $C08E                  ; bank 6
+        lda  $C08B                  ; $D000 page 1, RAM read and write
+        lda  $C08B
+        lda  #<__BANK6_LOAD__
+        sta  $06
+        lda  #>__BANK6_LOAD__
+        sta  $07
+        lda  #$00
+        sta  $08
+        lda  #$D0
+        sta  $09
+        lda  #>__BANK6_SIZE__
+        sta  $FF
+        ldx  #<__BANK6_SIZE__
+        jsr  CopyBytes
+        lda  $C08F                  ; bank 7 again, page 2 write enabled, as before
+        lda  LCROMWR
+        lda  LCROMWR
+@r:     rts
+; pack the English font: 128 glyphs of 16 bytes (10 used) at ENGSRC into 10 bytes each at ENGFONT
+SatPackEn:
+        lda  #<(ENGSRC+31*16)           ; codes 0-30 are control codes: they are never drawn
+        sta  $EB
+        lda  #>(ENGSRC+31*16)
+        sta  $EC
+        lda  #<ENGFONT
+        sta  $ED
+        lda  #>ENGFONT
+        sta  $EE
+        lda  #97                        ; codes 31-127
+        sta  $EF
+@e:     ldy  #$09
+@c:     lda  ($EB),y
+        sta  ($ED),y
+        dey
+        bpl  @c
+        lda  $EB
+        clc
+        adc  #$10
+        sta  $EB
+        bcc  @s1
+        inc  $EC
+@s1:    lda  $ED
+        clc
+        adc  #$0A
+        sta  $ED
+        bcc  @s2
+        inc  $EE
+@s2:    dec  $EF
+        bne  @e
+        rts
+; pack the Korean font: 184 glyphs of 24 bytes (12 rows: low byte, high byte; 12 bits used) at $6000 into 18 bytes each at
+; $D000: the 12 low bytes, then 6 bytes, each with the high parts (4 bits) of two rows, the even row in the low half
+SatPackKo:
+        lda  #$00
+        sta  $EB
+        sta  $ED
+        lda  #$60
+        sta  $EC
+        lda  #$D0
+        sta  $EE
+        lda  #184
+        sta  $EF
+@g:     ldy  #23
+@c:     lda  ($EB),y
+        sta  SatTmp,y
+        dey
+        bpl  @c
+        ldx  #$00
+        ldy  #$00
+@lo:    lda  SatTmp,x
+        sta  ($ED),y
+        inx
+        inx
+        iny
+        cpy  #$0C
+        bne  @lo
+        ldx  #$01
+@hi:    lda  SatTmp,x
+        and  #$0F
+        sta  $F0
+        inx
+        inx
+        lda  SatTmp,x
+        asl  a
+        asl  a
+        asl  a
+        asl  a
+        ora  $F0
+        sta  ($ED),y
+        inx
+        inx
+        iny
+        cpy  #$12
+        bne  @hi
+        lda  $EB
+        clc
+        adc  #24
+        sta  $EB
+        bcc  @s1
+        inc  $EC
+@s1:    lda  $ED
+        clc
+        adc  #18
+        sta  $ED
+        bcc  @s2
+        inc  $EE
+@s2:    dec  $EF
+        bne  @g
+        rts
+SatTmp: .res 24
+SatSig: .byte "KHG1"
+SatSelByte: .byte $00
+SatN:   .byte $00
+SatSave: .res 8
+.endif
 
 .segment "LCIMG"
 FREE_D000:                              ; was the English table; the table is ENGFONT now
@@ -312,23 +796,34 @@ KBSIG       = KBBASE+3
 KBMOD_IN    = KBBASE+5
 KBMOD_OUT   = KBBASE+8
 KBIN:
-        lda  KBSIG
-        cmp  #'K'
-        bne  @r
-        lda  KBSIG+1
-        cmp  #'B'
+        jsr  KBCHK
         bne  @r
         jmp  KBMOD_IN
 @r:
         rts
-KBOUT:
-        pha                             ; the original first instruction of COUT
-        sta  CHAR                       ; kept for the original path; COUT sets it again
+KBCHK:                                  ; Z set when the add-on's signature is there (shared by KBIN and KBOUT)
         lda  KBSIG
         cmp  #'K'
-        bne  @orig
+        bne  @r
         lda  KBSIG+1
         cmp  #'B'
+@r:
+        rts
+KBOUT:
+        pha                             ; the original first instruction of COUT
+.if !SATURN
+        bit  PBANOK                     ; the start-up banner is still to run: the filter is not in main RAM yet
+        bmi  @n
+        jsr  KEFILT                     ; the Korean Applesoft error messages (kerr.inc): carry set = it printed the text instead
+        bcs  @eat
+@n:
+.else
+        jsr  K6FN                       ; Saturn: the Korean error messages, in bank 6 (kerr6.inc). The stub keeps A, X and Y, and
+                                        ; when the character was swallowed it does not come back here (KPATCH6 makes it an rts
+                                        ; when there is no bank 6 code)
+.endif
+        sta  CHAR                       ; kept for the original path; COUT sets it again
+        jsr  KBCHK
         bne  @orig
         txa
         pha
@@ -350,6 +845,590 @@ KBOUT:
 @eat:
         pla                             ; as the end of COUT: A is the character again
         rts
+
+.if SATURN
+; ===========================================================================
+; Saturn 128KB card: the trampoline (docs/MEMORY_LAYOUT.md, draft). The pieces below are assembled here, in the card, but
+; run in main RAM: SATCOPY (INIT, HAN) copies them into free bytes of the $9400-$95FF block, which the stock driver
+; leaves as spaces. Operands that point into a piece are computed from the run address.
+;   SatEnter   caller domain -> driver: count the entry, select the K-HANGEUL bank, map the driver (RAM read, write protected).
+;   SatLeave1  driver -> caller domain. Entries nest (the line input calls the input hook again from inside the driver), so
+;              SATDEPTH counts them: an inner leave only switches the ROM in (the bank stays, as the stock stubs do); the
+;              outermost leave selects bank 0 and sets the caller's card state from SATSTATE.
+;   SatExit    the end of the line input: it rewinds the stack, so the outer leave is skipped. SatExit sets the depth to 1,
+;              leaves, and jumps to the previous output routine ($0036), as the stock stub at $9420 does.
+; Enter and leave keep A, X, Y and (leave) the flags of the routine. Nothing here needs the ROM or a free register.
+; SATSTATE: bit 3 = $D000 page (1 = first, the $C08B family), bit 4 = read RAM (0 = ROM), bit 5 = write enabled; bits 0-2
+; (the caller's Saturn bank) are 0: the caller is in bank 0 (home). BASIC: $08. kScheme: $38.
+; ===========================================================================
+SATSTATE = $95E2
+SATDEPTH = $9511                        ; one byte; the 15 bytes $9511-$951F are not used by the stock driver (arrays end at $9510)
+SATMODE  = $9512                        ; 8 bytes: the switch that sets the state (bits 5,4,3) of the caller
+SATR1    = $9521                        ; piece 1 runs here (40 bytes free: $9520 is read, never written, by the stock driver)
+SATR2    = $95CE                        ; piece 2 (14 bytes free: the key ring S_06D0 is 32 bytes, $95AE-$95CD). It was at $9599,
+                                        ; inside S_05D0 (41 bytes, one per column, written by the line editor): a backspace wiped it
+SATR3    = $95E3                        ; piece 3 (29 bytes free), right behind SATSTATE
+SatLeave1 = SATR1
+SatExit   = SATR2
+SatP0:
+        .byte $82,$8A,$80,$88,$81,$89,$83,$8B   ; ROM wp p2, ROM wp p1, RAM wp p2, RAM wp p1, ROM we p2, ROM we p1, RAM we p2, RAM we p1
+SatP0End:
+SatP1:
+        php
+        pha
+        txa
+        pha
+        dec  SATDEPTH
+        beq  @outer
+        bit  LCROMRD                    ; an inner leave: ROM read, write protected; the bank stays (the stock stub's sta $C082)
+        jmp  SatPops
+@outer:
+        bit  $C084                      ; Saturn bank 0, home
+        lda  SATSTATE
+        lsr  a
+        lsr  a
+        lsr  a
+        and  #$07
+        tax
+        lda  SATMODE,x
+        sta  SatMsel+1
+        sta  SatMsel2+1
+        jmp  SatMsel
+SatP1End:
+SatP2:
+        pha                             ; SatExit
+        lda  #$01
+        sta  SATDEPTH
+        pla
+        jsr  SatLeave1
+        jmp  ($0036)
+SatP2End:
+SatP3:
+SatMsel = SATR3
+SatL0:
+        bit  $C080                      ; operand patched: the caller's card state (twice, for write enable)
+SatMsel2 = SATR3 + 3
+SatL1:
+        bit  $C080
+SatPops = SATR3 + 6
+SatL2:
+        pla
+        tax
+        pla
+        plp
+        rts
+SatEnter = SATR3 + 11
+SatL3:
+        inc  SATDEPTH
+SatEbit:
+        bit  SATSELK                    ; the K-HANGEUL bank (also sets the card mode); operand set by SATCOPY from SATSELV
+        bit  LCRAMRW                    ; $C083 twice: this bank's $D000 page 2, RAM read and write
+        bit  LCRAMRW
+        rts
+SatP3End:
+SATR4    = $9478                        ; piece 4: SatRWm (16 bytes free)
+SatRWm    = SATR4
+SatP4:
+        php                             ; the stubs' old sta $C080 kept every flag: so does this
+        bit  LCRAMRW                    ; $C083 twice: page 2, RAM read and write
+        bit  LCRAMRW
+        plp
+        rts
+SatP4End:
+SatP5:                              ; at SATCATI: DOS calls this for CATINIT
+        jsr  SatEnter
+        jmp  CatinitB
+SatP5End:
+SatP6:                              ; at SATHAN: the HAN command (this code has to be in main RAM: BN's leave switches the card away)
+        jsr  SatEnter
+        jmp  STATEINIT
+SatP6End:
+; copy the pieces and set the BASIC state. INIT and HAN come here from inside the driver, so the depth is 1.
+SATCOPY:
+        ldx  #SatP5End-SatP5-1
+@p5:    lda  SatP5,x
+        sta  SATCATI,x
+        dex
+        bpl  @p5
+        ldx  #SatP6End-SatP6-1
+@p6:    lda  SatP6,x
+        sta  SATHAN,x
+        dex
+        bpl  @p6
+        ldx  #SatP4End-SatP4-1
+@y:     lda  SatP4,x
+        sta  SATR4,x
+        dex
+        bpl  @y
+        ldx  #SatP0End-SatP0-1
+@z:     lda  SatP0,x
+        sta  SATMODE,x
+        dex
+        bpl  @z
+        ldx  #SatP1End-SatP1-1
+@a:     lda  SatP1,x
+        sta  SATR1,x
+        dex
+        bpl  @a
+        ldx  #SatP2End-SatP2-1
+@b:     lda  SatP2,x
+        sta  SATR2,x
+        dex
+        bpl  @b
+        ldx  #SatP3End-SatP3-1
+@c:     lda  SatP3,x
+        sta  SATR3,x
+        dex
+        bpl  @c
+        lda  SATSELV                    ; the loader wrote the switch of the top bank here (0: stand-alone test build, keep bank 7)
+        beq  @d
+        sta  SATR3 + (SatEbit - SatP3) + 1
+@d:     jsr  KPATCH6                    ; the Korean DOS patches (INIT, HAN and the rebuild entry all come here)
+        lda  #$08
+        sta  SATSTATE
+        lda  #$01
+        sta  SATDEPTH
+        jmp  STOCKINIT
+.assert SatP0End-SatP0 <= 15, error, "Saturn piece 0 does not fit"
+.assert SatP1End-SatP1 <= 40, error, "Saturn piece 1 does not fit"
+.assert SatP2End-SatP2 <= 14, error, "Saturn piece 2 does not fit"
+.assert SatP3End-SatP3 <= 29, error, "Saturn piece 3 does not fit"
+.assert SatP4End-SatP4 <= 9, error, "Saturn piece 4 does not fit"
+.assert SatP5End-SatP5 <= 7, error, "Saturn piece 5 does not fit"
+.assert SatP6End-SatP6 <= 7, error, "Saturn piece 6 does not fit"
+.assert SatPadEnd < FMASK, error, "the padding is full"
+.assert SatL1 - SatP3 = 3, error, "Saturn piece 3 offsets changed"
+.assert SatL2 - SatP3 = 6, error, "Saturn piece 3 offsets changed"
+.assert SatL3 - SatP3 = 11, error, "Saturn piece 3 offsets changed"
+.endif
+
+.if SATURN
+EngPtr10:                           ; P0 = P0 + A * 10
+        sta  P2L
+        lda  #$00
+        sta  P2H
+        asl  P2L
+        rol  P2H                    ; 2A (carry is clear after the rol: the product fits in 16 bits)
+        lda  P2L
+        adc  P0L
+        sta  P0L
+        lda  P2H
+        adc  P0H
+        sta  P0H
+        asl  P2L
+        rol  P2H
+        asl  P2L
+        rol  P2H                    ; 8A (carry clear, as above)
+        lda  P2L
+        adc  P0L
+        sta  P0L
+        lda  P2H
+        adc  P0H
+        sta  P0H
+        rts
+EngPtr10End:
+SatEngTail:                         ; what is left of ENGCOPY: no write protect, the driver now keeps variables in the bank
+        lda  #$00
+        sta  CASEMODE
+        sta  STRIPF
+        lda  LCRAMRW                ; $C083 twice: page 2, RAM read and write
+        lda  LCRAMRW
+        rts
+SatEngTailEnd:
+SatBell:                            ; the ROM bell (BELL1 at $FBDD) without the ROM
+        lda  #$40
+        jsr  SatWait
+        ldy  #$C0
+@b:     lda  #$0C
+        jsr  SatWait
+        lda  SPKR
+        dey
+        bne  @b
+        rts
+SatWait:
+        sec
+@1:     pha
+@2:     sbc  #$01
+        bne  @2
+        pla
+        sbc  #$01
+        bne  @1
+        rts
+; the prompt routines, moved here from the banner (the call sites in the key input use the same names)
+CHECK:
+        lda  NOPR                   ; 1EE3  AD FB 1F
+        bne  CKX                    ; 1EE6  D0 3F
+        lda  PROMPTCH               ; INPUT's prompt character is $80: its answer starts right after the text
+        cmp  #$80                   ; BASIC printed, so draw no "]" (direct mode has $DD here)
+        beq  CKX
+        lda  CHAR                   ; the last thing drawn was a typed character: this is a wrapped row of the
+        cmp  #$20                   ; line being typed, not a fresh prompt (there it is the CR, $0D)
+        bcs  CKX
+        ldy  #$00                   ; 1EE8  A0 00
+        lda  (BASL),y               ; 1EEA  B1 28
+        and  #$7F                   ; 1EEC  29 7F
+        cmp  #$21                   ; 1EEE  C9 21
+        bcs  CKX                    ; 1EF0  B0 35
+        cmp  #$20                   ; carry set: the first cell is a space
+        lda  CH
+        beq  CKP                    ; column 0: draw the prompt
+        bcs  CKX                    ; a space and not column 0: nothing to draw
+        cmp  #$02                   ; a control code: only in column 1,
+        bcs  CKX
+        lsr  CH                     ; which becomes column 0
+CKP:
+        lda  HMODE                  ; 1F06  AD AC 94
+        pha                         ; 1F09  48
+        lda  #$00                   ; 1F0A  A9 00
+        sta  HMODE                  ; 1F0C  8D AC 94
+        txa                         ; 1F0F  8A
+        pha                         ; 1F10  48
+        tya                         ; 1F11  98
+        pha                         ; 1F12  48
+        lda  #$DD                   ; 1F13  A9 DD
+        sta  PROMPTCH               ; 1F15  85 33
+        lda  #$5D                   ; 1F17  A9 5D
+        sta  CHAR                   ; 1F19  8D AD 94
+        jsr  DISP                   ; 1F1C  20 AA EE
+        pla                         ; 1F1F  68
+        tay                         ; 1F20  A8
+        pla                         ; 1F21  68
+        tax                         ; 1F22  AA
+        pla                         ; 1F23  68
+        sta  HMODE                  ; 1F24  8D AC 94
+CKX:
+        rts                         ; 1F27  60
+DRAWPR:
+        jsr  CHECK                  ; 1F28  20 E3 1E
+        sec                         ; 1F2B  38
+        rol  S_0554                 ; 1F2C  2E 54 05
+        rts                         ; 1F2F  60
+WRAP:
+        jsr  CHECK                  ; 1F30  20 E3 1E
+        jmp  L_EB98                 ; 1F33  4C 98 EB
+SatChecksEnd:
+.assert SatChecksEnd - CHECK = 90, error, "the prompt routines changed size: change the .res in the banner"
+; what DOS reaches through the stubs in the $9400 block: they enter the bank and jump to these, which leave with SatLeave1
+CatwaitB:                           ; CATWAIT: wait for a key while CATALOG pages (the stock code calls the ROM RDKEY, which ends in KEYREAD)
+        lda  #$01
+        sta  NOPR
+        jsr  CATFIX
+        ldy  CH
+        lda  (BASL),y               ; the character under the cursor, as RDKEY passes it
+        jsr  KEYREAD                ; the driver's key routine itself: it returns with the card still on
+        pha
+        lda  #$00
+        sta  NOPR
+        pla
+        jmp  SatCw                  ; Ctrl-C check (SatCw is in the padding of ENGPTR); it leaves with SatLeave1
+CatinitB:                           ; CATINIT: the CATALOG page length
+        sec
+        lda  WNDBTM
+        sbc  CV
+        bcc  @f
+        cmp  #$02
+        bcc  @f
+        sbc  #$01
+        bne  @s
+@f:     sec
+        lda  WNDBTM
+        sbc  #$01
+@s:     sta  $B39D
+        jmp  SatLeave1
+SatBanner:                          ; the end of STOCKINIT: the start-up banner, once, from its temporary place
+        lda  BANOK
+        beq  @n
+        lda  #$00
+        sta  BANOK
+        jmp  BN
+@n:     jmp  SatLeave1              ; HAN: the banner is gone; leave as BN would
+; ---------------------------------------------------------------------------
+; Korean DOS on a Saturn card (the code is in bank 6, segment BANK6, scope K6). Only with the driver in bank 7. KPATCH6 writes
+; the stubs and patches DOS like KPATCH of the 16K card build; each patch only if DOS has the stock bytes there. The stubs:
+;   K6IN  ($BCDF) count the entry (SATDEPTH, as SatEnter does) and map bank 6, $D000 page 1, read
+;   K6SEL ($BCE2) the last part of it, also used by K6PUT
+;   K6MSG ($BCE9) DOS's message routine ($A702): K6IN, then K6::KMSGC
+;   K6AL  ($BCEF) DOS's code for a line it does not know ($A000): K6IN, then K6::KAL
+;   K6PUT ($BCF5) print A from bank 6: the driver's output entry $940A (which enters and leaves bank 7), then bank 6 again
+;   K6FN  ($951A, free bytes of the $9400 block, made again by every SATCOPY) DOS's file name check ($A04D): K6IN, K6::KFNC
+; INIT still runs HAN on a Saturn card (the loader writes jmp SATHAN at $A55B), so these patches never reach a new disk.
+; ---------------------------------------------------------------------------
+K6IN  = $BCDF
+K6SEL = K6IN + 3
+K6MSG = K6IN + 10
+K6AL  = K6IN + 16
+K6PUT = K6IN + 22
+K6FN  = $951A                           ; 6 bytes, $951A-$951F (it was at $95A6, inside S_05D0)
+.assert K6PUT = K6::KPUTC, error, "K6PUT moved"
+.assert SatLeave1 = K6::KX, error, "SatLeave1 moved"
+.assert SatEnter = K6::SatEnter6, error, "SatEnter moved (kerr6.inc)"
+.assert SATDEPTH = K6::SatDepth6, error, "SATDEPTH moved (kerr6.inc)"
+K6DB:   .byte $EE,<SATDEPTH,>SATDEPTH, $2C,$8E,$C0, $2C,$88,$C0, $60     ; K6IN: inc SATDEPTH / bit $C08E / bit $C088 / rts
+        .byte $20,<K6IN,>K6IN, $4C,<K6::KMSGC,>K6::KMSGC                ; K6MSG
+        .byte $20,<K6IN,>K6IN, $4C,<K6::KAL,>K6::KAL                    ; K6AL
+        .byte $20,$0A,$94, $4C,<K6SEL,>K6SEL                            ; K6PUT
+K6DSZ = * - K6DB
+.assert K6DSZ <= 33, error, "the Saturn stubs do not fit in $BCDF-$BCFF"
+K6FNB:  .byte $20,<K6IN,>K6IN, $4C,<K6::KDISP,>K6::KDISP                ; K6FN (KDISP: the file name check, or the error filter)
+K6R:    rts
+KPATCH6:
+        ldx  #5
+@n:     lda  K6FNB,x                    ; K6FN is called by KBOUT too: it has to be there in every case
+        sta  K6FN,x
+        dex
+        bpl  @n
+        lda  SATSELV
+        cmp  #$8F                       ; bank 7 (then bank 6 page 1 holds the code; kScheme leaves it alone)
+        beq  @ok
+        lda  #$60                       ; no bank 6 code: K6FN is an rts
+        sta  K6FN
+        rts
+@ok:    lda  K6IN
+        cmp  #$EE                       ; the stubs are there already (HAN, the rebuild entry)
+        beq  @m
+        ora  K6IN+K6DSZ-1               ; else the first and the last byte must be free (zero)
+        bne  K6R
+        ldx  #K6DSZ-1
+@c:     lda  K6DB,x
+        sta  K6IN,x
+        dex
+        bpl  @c
+@m:     lda  $A702                      ; messages: lda $AA3F,x / tax (the first byte is checked)
+        cmp  #$BD
+        bne  @f
+        lda  #$4C
+        sta  $A702
+        lda  #<K6MSG
+        sta  $A703
+        lda  #>K6MSG
+        sta  $A704
+@f:     lda  $A04F                      ; file names: jmp $A000 at $A04D
+        cmp  #$A0
+        bne  @a
+        lda  #<K6FN
+        sta  $A04E
+        lda  #>K6FN
+        sta  $A04F
+@a:     lda  $A000                      ; command names: lda $0200 at $A000
+        cmp  #$AD
+        bne  @h
+        lda  #$4C
+        sta  $A000
+        lda  #<K6AL
+        sta  $A001
+        lda  #>K6AL
+        sta  $A002
+@h:     lda  $ADAF                      ; the CATALOG header, as in KPATCH
+        cmp  #$0B
+        bne  @x
+        lda  $B3AF
+        cmp  #$A0
+        bne  @x
+        lda  #$08
+        sta  $ADAF
+        ldx  #$08
+@hc:    lda  KHDR6,x
+        sta  $B3AF,x
+        dex
+        bpl  @hc
+@x:     rts
+KHDR6:  .byte $A0,$81,$C1,$C2,$C6,$C6,$C8,$D1,$8B
+SatPadEnd:
+        .res FMASK-$D000-(*-FREE_D000)
+        .incbin "build/FONT12.bin", 4416, 42      ; the shift masks, at the end of the font file
+; The loader writes the machine flag and the banner flag at SATVARB: it has to be the VARB of this arrangement
+.assert SATVARB = VARB, error, "SATVARB is not VARB of the Saturn arrangement"
+; The rebuild entry, frozen at $D3FA (docs/MEMORY_LAYOUT.md): a program that has overwritten the $9400-$95FF block (kScheme's
+; load) calls it, with this bank selected and the card RAM read and write enabled, to make the block again from the bank. It
+; is the HAN command without the DOS command: STATEINIT refills the state, SATCOPY and STOCKINIT copy the trampoline and the
+; stubs, the hooks and the hi-res screen are set up again. It returns through SatLeave1 (ROM visible, bank 0, SATSTATE $08).
+; $D3FD is the interface version, $D3FE the magic byte.
+SatReinitEntry:
+        jmp  STATEINIT
+        .byte $01,$5A
+.assert SatReinitEntry = SATREINIT, error, "the rebuild entry moved"
+.endif
+.if !SATURN
+; ---------------------------------------------------------------------------
+; Korean DOS error messages (docs/DOS_KOREAN_REPORT.md, section 4). DOS prints message number X (0-15) with its routine at
+; $A702; INIT patches the first three bytes of that routine into a JMP to KSTUB (a stub in main RAM, at the end of the banner
+; segment). KSTUB runs this routine with the card on, but only when DOS's output is the driver's; otherwise it does what the
+; DOS routine did. The texts are Hangul keystroke text (Ctrl-K, keys, Ctrl-A), which COUT draws; each ends with $00.
+; Message 0 is CR, bell, CR; messages 2 and 3 are both RANGE ERROR. The English text stays in DOS.
+; ---------------------------------------------------------------------------
+KX = KEXIT                          ; the routines in kdos_msg.inc and kdos_cmd.inc leave through KX, print through KPUTC,
+KPUTC = COUT                        ; and swap the INIT guard back if KGUARD (the bank-6 copy for Saturn sets them otherwise)
+KGUARD = 1
+.include "kdos_msg.inc"
+; The start-up banner (BN, assembled at $1CC0 in main RAM) runs once, at boot: STATEINIT ends in  jmp PBAN  (it was jmp BN), so
+; HAN, Ctrl-Reset and INIT print no banner again. When BN has run it ends in  jmp KRC  (card on): KRC copies the Korean error
+; filter (segment KERRRES, kerr.inc, in the file behind the banner) over the banner, which is not needed any more, and clears
+; PBANOK. KBOUT calls the filter only while PBANOK is clear.
+PBAN:   bit  PBANOK
+        bpl  @s                     ; the banner has run
+        jmp  BN
+@s:     jmp  KEXIT                  ; the card off and rts, as BN's rts did
+KRC:    ldy  #0
+@a:     lda  __KERRRES_LOAD__,y
+        sta  __KERRRES_RUN__,y
+        iny
+        bne  @a
+        ldy  #<(__KERRRES_SIZE__-$100)
+@b:     lda  __KERRRES_LOAD__+$FF,y
+        sta  __KERRRES_RUN__+$FF,y
+        dey
+        bne  @b
+        sty  PBANOK                 ; Y = 0
+        jmp  KEXIT
+; INIT's last step in the plain build (DPX jumps here). DOS's routine that prints message X starts at $A702 with
+; lda $AA3F,x / tax  (BD 3F AA AA). Patch its first three bytes into  jmp KSTUB  if they are exactly that, so that a second INIT
+; (the HAN command) or another DOS leaves it alone. The Saturn arrangement does not do this yet: its stub has to go through
+; the bank trampoline.
+KPATCH:
+        lda  $A702
+        cmp  #$BD
+        bne  @f
+        lda  $A703
+        cmp  #$3F
+        bne  @f
+        lda  $A704
+        cmp  #$AA
+        bne  @f
+        lda  $A705
+        cmp  #$AA                   ; tax
+        bne  @f
+        lda  #$4C
+        sta  $A702
+        lda  #<KSTUB
+        sta  $A703
+        lda  #>KSTUB
+        sta  $A704
+@f:     lda  $A04D                  ; file names: DOS's first-character check  asl a / bcc $A050 / bmi $A050 / jmp $A000
+        cmp  #$4C                   ; (the jmp at $A04D, 4C 00 A0) now goes to KFN, which also lets Ctrl-K through
+        bne  @z
+        lda  $A04E
+        bne  @z
+        lda  $A04F
+        cmp  #$A0
+        bne  @z
+        lda  #<KFN
+        sta  $A04E
+        lda  #>KFN
+        sta  $A04F
+@z:     lda  $A000                  ; the Korean command names: DOS's code for a line it does not know starts at $A000 with
+        cmp  #$AD                   ; lda $0200  (AD 00 02); it becomes  jmp KALS
+        bne  @h                     ; (the first byte is enough: lda abs at the start of the line code)
+        lda  #$4C
+        sta  $A000
+        lda  #<KALS
+        sta  $A001
+        lda  #>KALS
+        sta  $A002
+@h:     lda  $ADAF                  ; the CATALOG header: DOS prints the 12 bytes at $B3AF backwards ("DISK VOLUME "):
+        cmp  #$0B                   ; ldx #$0B / lda $B3AF,x / jsr $FDED / dex / bpl  (operand at $ADAF)
+        bne  @x
+        lda  $B3AF                  ; the text as stock DOS 3.3 has it
+        cmp  #$A0
+        bne  @x
+        lda  #$08                   ; print 9 bytes, not 12: the Korean for "volume" and a space need no more
+        sta  $ADAF
+        ldx  #$08
+@c:     lda  KHDR,x
+        sta  $B3AF,x
+        dex
+        bpl  @c
+@x:     lda  $9D1F                  ; the INIT guard: DOS's handler table entry for INIT (address - 1, $A54E)
+        cmp  #$A5
+        bne  @y                     ; not stock, or already the guard (HAN again; the guard's is $BC): leave it
+        ldx  #KDOSSZ-1              ; the guard's stubs go into DOS's unused bytes $BCDF-$BCFF, if they are all zero
+@q:     lda  KDOSA,x
+        bne  @no
+        dex
+        bpl  @q
+        ldx  #KDOSSZ-1
+@r:     lda  KDOSB,x
+        sta  KDOSA,x
+        dex
+        bpl  @r
+        lda  #<(KINITS-1)
+        sta  $9D1E
+        lda  #>(KINITS-1)
+        sta  $9D1F
+        lda  $A702                  ; the message routine goes through KSTUBD, which a new disk also gets
+        cmp  #$4C
+        bne  @y
+        lda  #<KSTUBD
+        sta  $A703
+        lda  #>KSTUBD
+        sta  $A704
+@y:     jmp  STATEINIT
+@no:    lda  #$4C                   ; no room for the guard: INIT must not write a patched DOS to a disk, so it runs HAN,
+        sta  $A55B                  ; as it always did before
+        lda  #<HANMAIN
+        sta  $A55C
+        lda  #>HANMAIN
+        sta  $A55D
+        jmp  STATEINIT
+; $B3AF-$B3B7: "볼륨 " (Hangul keystroke text: Ctrl-K, Q H F F B A, Ctrl-A, space), stored backwards as DOS prints it. It is
+; written only when the driver was loaded, so DOS prints the English header without it. There is no room for "디스크 볼륨"
+; (17 bytes); the English header is 12 bytes and the bytes after it hold other DOS data.
+KHDR:   .byte $A0,$81,$C1,$C2,$C6,$C6,$C8,$D1,$8B
+
+; ---------------------------------------------------------------------------
+; The INIT guard (report section 9). DOS's INIT writes the DOS in memory to the new disk, with the driver's patches, which jump
+; into the driver: such a disk would crash when it boots without it. INIT now goes to KINITS (in DOS's unused bytes $BCDF), then
+; to KINITC: KSWAP exchanges every patched byte with the stock byte kept in KSWT, so DOS is stock while INIT runs. INIT's handler
+; returns to KPOST, which swaps back. If INIT fails, DOS prints its error message instead: the message routine ($A702) is not
+; swapped; it jumps to KSTUBD, which is in $BCDF too and so is on the new disk as well. KSTUBD goes to the driver only while
+; DOS's output is the driver's ($37 = $94, otherwise DOS's own English text: so the new disk works without the driver), and the
+; driver's message code swaps back first (KBACKC). KSWF = KSWON says that DOS is stock now.
+; ---------------------------------------------------------------------------
+KSWON = $5A                         ; KSWF = KSWON: DOS is stock now (any other value: the patches are in)
+KDOSA = $BCDF                       ; DOS 3.3 does not use $BCDF-$BCFF
+KINITS = KDOSA                      ; the offsets below are fixed: see KDOSB
+KPOST = KDOSA + 6
+KSTUBD = KDOSA + 16
+KDOSB:                              ; copied to KDOSA
+        .byte $2C,<LCRAMRD,>LCRAMRD, $4C,<KINITC,>KINITC          ; KINITS: bit LCRAMRD / jmp KINITC
+        .byte $2C,<LCRAMRD,>LCRAMRD, $20,<KBACKC,>KBACKC, $2C,<LCROMRD,>LCROMRD, $60   ; KPOST: card on, KBACKC, card off, rts
+        .byte $A5,$37, $C9,$94, $D0,$03, $4C,<KSTUB,>KSTUB         ; KSTUBD: lda $37 / cmp #$94 / bne + / jmp KSTUB
+        .byte $BD,$3F,$AA, $4C,$05,$A7                             ;      +: lda $AA3F,x / jmp $A705 (what DOS's routine did)
+KDOSSZ = * - KDOSB
+.assert KDOSSZ <= 33, error, "the INIT guard stubs do not fit in $BCDF-$BCFF"
+; exchange each patched range of DOS with KSWT (the card is made writable for it). Entries never cross a page.
+KSWAP:  bit  LCRAMRW
+        bit  LCRAMRW
+        ldx  #0
+@e:     ldy  KSWT+2,x               ; the length; 0 ends the table
+        beq  @d
+        lda  KSWT,x
+        sta  @m+1
+        sta  @w+1
+        lda  KSWT+1,x
+        sta  @m+2
+        sta  @w+2
+        inx
+        inx
+        inx
+@l:     lda  KSWT,x
+        pha
+@m:     lda  $FFFF                  ; operand set above
+        sta  KSWT,x
+        pla
+@w:     sta  $FFFF
+        inc  @m+1
+        inc  @w+1
+        inx
+        dey
+        bne  @l
+        beq  @e
+@d:     lda  KSWF                   ; stock <-> patched (the flag is in the card, so STATEINIT does not reset it)
+        eor  #KSWON
+        sta  KSWF
+        bit  LCRAMRD                ; RAM read, write protected again
+        rts
+
+.endif
         .res 1024-(*-FREE_D000)
 
 ; ==========================================================================
@@ -460,8 +1539,14 @@ CUW:
         tax                         ; D4CF  AA
         jsr  LINEX                  ; was jsr LINE
         jsr  ADDOFF                 ; D4D3  20 AB F2
+.if SATURN
         lda  #$0C                   ; D4D6  A9 0C
         sta  ROWI                   ; D4D8  8D F8 1F
+.else
+        jsr  CURHK                  ; the number of lines of the cursor: 12 in English mode, 6 (the upper half) in Hangul mode
+        nop
+        nop
+.endif
 CU3:
         ldy  #$00                   ; D4DB  A0 00
         lda  ($26),y                ; D4DD  B1 26
@@ -772,8 +1857,8 @@ BCD:
         ldx  #$00                   ; D6FD  A2 00
 IF1:
         sta  BUF,x                  ; D6FF  9D 80 19
-        sta  $1A80,x                ; D702  9D 80 1A
-        sta  $1B80,x                ; D705  9D 80 1B
+        sta  BUF+$100,x                ; D702  9D 80 1A
+        sta  BUF+$200,x                ; D705  9D 80 1B
         inx                         ; D708  E8
         bne  IF1                    ; D709  D0 F4
         lda  #$FF                   ; D70B  A9 FF
@@ -794,7 +1879,7 @@ IF3:
         ldx  #$00                   ; D726  A2 00
 BCP:
         lda  BELLIMG,x              ; D728  BD AF D7
-        sta  BELL,x                 ; D72B  9D B0 1C
+        sta  BELLD,x                ; D72B  9D B0 1C
         inx                         ; D72E  E8
         cpx  #$0A                   ; D72F  E0 0A
         bne  BCP                    ; D731  D0 F5
@@ -860,17 +1945,25 @@ BCP:
         lda  #>CATWAIT
         sta  $AE3B                  ; D7A7  8D 3B AE
 DPX:
+.if SATURN
         jmp  STATEINIT              ; D7AA  4C DA E3
+.else
+        jmp  KPATCH                 ; the Korean DOS messages patch (in the free block, KMSGC); it ends with jmp STATEINIT
+.endif
 BSRCL:
         .byte <__BANNER_LOAD__
 BSRCH:
         .byte >__BANNER_LOAD__
 BELLIMG:
+.if SATURN
+        .byte $8D,$82,$C0,$20,$DD,$FB,$20,<SatRWm,>SatRWm,$60
+.else
         .byte $8D,$82,$C0,$20,$DD,$FB,$8D,$80,$C0,$60; D7AF
+.endif
 ROWLO:
-        .byte $80,$AE,$DC,$0A,$38,$66,$94,$C2,$F0,$1E,$4C,$7A,$A8,$D6,$04,$32; D7B9
+        .byte <(BUF+46*0),<(BUF+46*1),<(BUF+46*2),<(BUF+46*3),<(BUF+46*4),<(BUF+46*5),<(BUF+46*6),<(BUF+46*7),<(BUF+46*8),<(BUF+46*9),<(BUF+46*10),<(BUF+46*11),<(BUF+46*12),<(BUF+46*13),<(BUF+46*14),<(BUF+46*15)
 ROWHI:
-        .byte $19,$19,$19,$1A,$1A,$1A,$1A,$1A,$1A,$1B,$1B,$1B,$1B,$1B,$1C,$1C; D7C9
+        .byte >(BUF+46*0),>(BUF+46*1),>(BUF+46*2),>(BUF+46*3),>(BUF+46*4),>(BUF+46*5),>(BUF+46*6),>(BUF+46*7),>(BUF+46*8),>(BUF+46*9),>(BUF+46*10),>(BUF+46*11),>(BUF+46*12),>(BUF+46*13),>(BUF+46*14),>(BUF+46*15)
 MASK:
         .byte $01,$02,$04,$08,$10,$20,$40; D7D9
 MUL19:
@@ -892,7 +1985,11 @@ STATEINIT:
         lda  SW2                        ; the level of the Shift mod input while Shift is not held (see SHFIX). It has to be
         and  #$80                       ; read here: the fill above would overwrite it (it used to be set in ENGCOPY, so
         sta  SHIDLE                     ; SHIDLE was always $A0 and a machine whose $C063 idles low, such as a IIe, saw
+.if SATURN
+        jmp  SATCOPY                    ; the trampoline and the state byte go into the free bytes of the state area, then STOCKINIT
+.else
         jmp  STOCKINIT                  ; Shift held all the time: every R E Q T W O P came out as a double consonant)
+.endif
 ; ---------------------------------------------------------------------------
 ; The English font: FONT6X10 is loaded at ENGSRC ($7200) by HELLO and copied here by INIT while the card
 ; is still writable. 128 glyphs of 16 bytes: the 10 lines of the glyph, then 6 unused bytes (so a glyph
@@ -901,6 +1998,17 @@ STATEINIT:
 ; ---------------------------------------------------------------------------
 ; P0 = P0 + A * 16
 ENGPTR:
+.if SATURN
+        jmp  EngPtr10               ; P0 = P0 + A * 10 (the packed English font), in the padding of the driver page
+SatCw:  cmp  #$83                   ; the end of CatwaitB: A is the key. Ctrl-C ends the CATALOG listing: SatLeave1's rts then goes
+        bne  @k                     ; to DOS's end of CATALOG ($AE2C) instead of back into the listing (the file manager
+        lda  #$AE                   ; restores its own stack pointer, so the return address left below needs no tidying)
+        pha
+        lda  #$2B
+        pha
+@k:     jmp  SatLeave1
+        .res 23-(*-SatCw), $EA
+.else
         sta  P2L
         lsr  a
         lsr  a
@@ -919,18 +2027,24 @@ ENGPTR:
         adc  P0H
         sta  P0H
         rts
+.endif
 
 ; INIT calls this with the card writable: copy FONT6X10 from ENGSRC to ENGFONT, then write protect the card
 ENGCOPY:
+.if SATURN
+        jmp  SatEngTail             ; the loader has already packed the English font into ENGFONT
+        nop
+.else
         lda  #<ENGSRC
         sta  $06
-        lda  #>ENGSRC
+.endif
+        lda  #>(ENGSRC+$200)            ; glyphs 32-127 only (the first 512 bytes of ENGFONT are free for code in the plain build)
         sta  $07
         lda  #<ENGFONT
         sta  $08
-        lda  #>ENGFONT
+        lda  #>(ENGFONT+$200)
         sta  $09
-        ldx  #$08                       ; 8 pages
+        ldx  #$06                       ; 6 pages
         ldy  #$00
 @copy:
         lda  ($06),y
@@ -941,13 +2055,108 @@ ENGCOPY:
         inc  $09
         dex
         bne  @copy
+ENGTAIL:
         lda  #$00
         sta  CASEMODE
         sta  STRIPF                     ; strip mode off (see LINEX)
         lda  LCRAMRD                    ; $C080: RAM read, write protected
         rts
 ENGFONT:
-        .res 2048
+.if SATURN
+        .res 2048-SATTAIL                 ; the English font (970 bytes) is followed by the text buffer, the flags and the variables, then SatUnpack and GLY
+; $E000-$E05F: reads the packed Korean glyphs. It has to be in $E000-$FFFF because it switches the $D000 page.
+; P0, P1, P2 point to the three glyphs (initial, vowel, final consonant) in the other page. Row r: the low byte is byte r,
+; the high part is a nibble of byte 12 + r/2. The three glyphs are ORed byte by byte; the nibbles come out one by one.
+SatUnpack:
+        bit  LCRAMRW2               ; $C08B twice: this bank's $D000 page 1, RAM read and write
+        bit  LCRAMRW2
+        ldx  #$00
+@lo:    txa
+        tay
+        lda  (P0L),y
+        ora  (P1L),y
+        ora  (P2L),y
+        sta  GLY,x
+        inx
+        cpx  #$0C
+        bne  @lo
+        ldx  #$00
+        ldy  #$0C
+@hi:    lda  (P0L),y
+        ora  (P1L),y
+        ora  (P2L),y
+        pha
+        and  #$0F
+        sta  GLYHI,x
+        inx
+        pla
+        lsr  a
+        lsr  a
+        lsr  a
+        lsr  a
+        sta  GLYHI,x
+        inx
+        iny
+        cpx  #$0C
+        bne  @hi
+        bit  LCRAMRW                ; $C083 twice: page 2 again, where the driver runs
+        bit  LCRAMRW
+        rts
+SatUnpackEnd:
+.assert SatUnpackEnd - SatUnpack <= SATTAIL - 24, error, "SatUnpack does not fit before GLY"
+        .res SATTAIL-(SatUnpackEnd-SatUnpack)
+.else
+; The English glyphs of the control codes 0-31 are empty, so the first 512 bytes of ENGFONT ($D860-$DA5F) are free in this
+; build (ENGCOPY does not copy them; a control code that is drawn at all shows these bytes as dots instead of a blank).
+; The Korean DOS command names are here.
+.include "kdos_cmd.inc"
+KINITC:                             ; DOS's INIT handler with the card on: make DOS stock, then go on at DOS's INIT ($A54F)
+        jsr  KBACKC                 ; (if a failed INIT was never followed by a message, DOS is stock already: patch it first)
+        jsr  KSWAP
+        lda  #>(KPOST-1)            ; INIT's handler returns to KPOST (DOS's next step after it is a jmp: no flags needed)
+        pha
+        lda  #<(KPOST-1)
+        pha
+        lda  #$A5
+        pha
+        lda  #$4E
+        pha
+        jmp  KEXIT
+; from KPOST, KINITC or the message code, with the card on: if DOS is stock (INIT ran), swap the patches back. A, X, Y and the flags
+; are kept.
+KBACKC: php
+        pha
+        txa
+        pha
+        tya
+        pha
+        lda  KSWF
+        cmp  #KSWON
+        bne  @x
+        jsr  KSWAP
+@x:     pla
+        tay
+        pla
+        tax
+        pla
+        plp
+        rts
+; address, length, then the bytes that are not in DOS now (stock bytes while the patches are in; the patches while INIT runs)
+KSWT:   .byte <$A000,>$A000,3, $AD,$00,$02          ; the command names
+        .byte <$A04E,>$A04E,2, $00,$A0              ; file names
+        .byte <$A59E,>$A59E,3, $A9,$20,$20          ; HAN in the slot of INT
+        .byte <$A8F1,>$A8F1,3, $49,$4E,$D4          ; its name, "INT"
+        .byte <$ADA3,>$ADA3,5, $A9,$16,$8D,$9D,$B3  ; CATALOG: CATINIT
+        .byte <$ADAF,>$ADAF,1, $0B                  ; CATALOG header length
+        .byte <$AE3A,>$AE3A,4, $0C,$FD,$A9,$15      ; CATALOG: CATWAIT and the page length
+        .byte <$B3B0,>$B3B0,8, $C5,$CD,$D5,$CC,$CF,$D6,$A0,$CB   ; CATALOG header text
+        .byte <$9D1E,>$9D1E,2, $4E,$A5              ; INIT's handler (the guard)
+        .byte 0,0,0
+KSWF:   .byte 0                     ; KSWON while DOS is stock (INIT is running)
+KALEND:
+.assert KALEND - ENGFONT <= 512, error, "the Korean command code does not fit in the unused glyphs"
+        .res 2048-(KALEND-ENGFONT)
+.endif
 .assert ENGFONT = $D860, error, "ENGFONT must be at $D860: the stock data after it starts at $E060"
         .byte $02,$02,$83,$05,$00,$00,$00,$00,$07,$07,$02,$02          ; E060
         .byte $83,$05,$02,$07,$83,$05,$83,$07,$00,$00,$00,$07,$07,$04,$07,$00; E06C
@@ -1083,7 +2292,11 @@ L_E3DC:
         lda  #$94                   ; E425  A9 94
         sta  KSWH                   ; E427  85 39
         jsr  L_E480                 ; E429  20 80 E4
-        jmp  BN                     ; E42C  4C C0 1C
+.if SATURN
+        jmp  SatBanner              ; the banner runs once, from a temporary place, only at boot
+.else
+        jmp  PBAN                   ; E42C  4C C0 1C  was jmp BN: the banner runs once, at boot (see PBAN)
+.endif
         .byte $20,$95,$E4,$89,$FE,$20,$95,$E4,$93,$FE,$20,$95,$E4,$2F,$FB,$4C; E42F
         .byte $80,$E4               ; E43F
 WNDCLAMP:
@@ -1209,7 +2422,7 @@ L_E51F:
         ldy  CV                     ; E51F  A4 25
         bpl  L_E528                 ; E521  10 05
 L_E523:
-        lda  $1C61,y                ; E523  B9 61 1C
+        lda  FLAGS+1,y                ; E523  B9 61 1C
         bmi  L_E53C                 ; E526  30 14
 L_E528:
         iny                         ; E528  C8
@@ -1218,7 +2431,7 @@ L_E528:
         bcs  L_E53C                 ; E52D  B0 0D
 L_E52F:
         ldy  CV                     ; E52F  A4 25
-        lda  $1C61,y                ; E531  B9 61 1C
+        lda  FLAGS+1,y                ; E531  B9 61 1C
         bmi  L_E553                 ; E534  30 1D
         lda  WNDTOP                 ; E536  A5 22
         cmp  CV                     ; E538  C5 25
@@ -1246,7 +2459,7 @@ L_E553:
         bne  L_E567                 ; E55E  D0 07
         ldy  CV                     ; E560  A4 25
         lda  #$00                   ; E562  A9 00
-        sta  $1C62,y                ; E564  99 62 1C
+        sta  FLAGS+2,y                ; E564  99 62 1C
 L_E567:
         bit  S_04D5                 ; E567  2C 2D 94
         bmi  L_E56F                 ; E56A  30 03
@@ -1308,7 +2521,7 @@ L_E5CE:
         rts                         ; E5E3  60
         clc                         ; E5E4  18
 D_E5E5:
-        bcs  L_E61E+1               ; E5E5  B0 38
+        .byte $B0,$38               ; E5E5  (data, read as bytes; it was written as  bcs L_E61E+1, which changes when code before it moves)
         ror  HMODE                  ; E5E7  6E AC 94
         rts                         ; E5EA  60
         jsr  L_EC93                 ; E5EB  20 93 EC
@@ -1340,8 +2553,6 @@ L_E610:
         dex                         ; E616  CA
         bpl  L_E610                 ; E617  10 F7
         jsr  SAVECLR                ; E619  20 48 D6
-        nop                         ; E61C  EA
-        nop                         ; E61D  EA
 L_E61E:
         sta  S_0665                 ; E61E  8D 92 94
         sta  S_0664                 ; E621  8D 91 94
@@ -1363,7 +2574,7 @@ L_E63C:
 FETCHLINE:
         ldy  WNDBTM                 ; E644  A4 23
         lda  #$FF                   ; E646  A9 FF
-        sta  $1C61,y                ; E648  99 61 1C
+        sta  FLAGS+1,y                ; E648  99 61 1C
         lda  WNDWDTH                ; E64B  A5 21
         pha                         ; E64D  48
         ldy  CV                     ; E64E  A4 25
@@ -1373,8 +2584,8 @@ L_E652:
 L_E654:
         ldy  CH                     ; E654  A4 24
 L_E656:
-        lda  (BASL),y               ; E656  B1 28
-        cmp  #$9F                   ; E658  C9 9F
+        jsr  FCHK                   ; was lda (BASL),y / cmp #$9F: the same, but the fetch stops at the cursor (FCHK)
+        nop
         beq  L_E69F                 ; E65A  F0 43
         bit  S_0666                 ; E65C  2C 93 94
         bmi  L_E697                 ; E65F  30 36
@@ -1423,7 +2634,7 @@ L_E69F:
         jsr  FIXCONT                ; was lda #0 / sta CH: start at column 0, or 1 after the "]" mark
         nop
 L_E6AD:
-        lda  $1C62,y                ; E6AD  B9 62 1C
+        lda  FLAGS+2,y                ; E6AD  B9 62 1C
         bpl  L_E654                 ; E6B0  10 A2
         ldy  WNDWDTH                ; E6B2  A4 21
 L_E6B4:
@@ -1442,8 +2653,6 @@ L_E6C0:
         lda  #$00                   ; E6C7  A9 00
         sta  S_04D7                 ; E6C9  8D 2F 94
         jsr  CLOSERUN               ; was lda #$8D / sta INBUF,x: close an open Hangul run, then the CR
-        nop
-        nop
         stx  S_066C                 ; E6D1  8E 99 94
         clc                         ; E6D4  18
         rts                         ; E6D5  60
@@ -1463,6 +2672,8 @@ L_E6ED:
         bpl  L_E715                 ; E6F0  10 23
         cmp  #$A1                   ; E6F2  C9 A1
         bcc  L_E715                 ; E6F4  90 1F
+        cmp  #$AC                   ; a comma closes an open Hangul run too (4 bytes, paid by the 4 NOPs removed from this routine):
+        beq  L_E70C                 ; BSAVE B<Hangul>,A768 then has the Ctrl-A before the comma, where DOS ends the name
         cmp  #$E1                   ; E6F6  C9 E1
         bcc  L_E6FC                 ; E6F8  90 02
         eor  #$20                   ; E6FA  49 20
@@ -1502,10 +2713,10 @@ L_E729:
 L_E733:
         lda  #$FF                   ; E733  A9 FF
         ldy  WNDBTM                 ; E735  A4 23
-        sta  $1C61,y                ; E737  99 61 1C
+        sta  FLAGS+1,y                ; E737  99 61 1C
 L_E73A:
         ldy  CV                     ; E73A  A4 25
-        lda  $1C62,y                ; E73C  B9 62 1C
+        lda  FLAGS+2,y                ; E73C  B9 62 1C
         pha                         ; E73F  48
         ldx  S_0663                 ; E740  AE 90 94
         cpx  S_0664                 ; E743  EC 91 94
@@ -1540,7 +2751,7 @@ L_E778:
         bne  L_E73A                 ; E780  D0 B8
         ldy  CV                     ; E782  A4 25
         lda  #$FF                   ; E784  A9 FF
-        sta  $1C61,y                ; E786  99 61 1C
+        sta  FLAGS+1,y                ; E786  99 61 1C
         lda  WNDTOP                 ; E789  A5 22
         pha                         ; E78B  48
         lda  CV                     ; E78C  A5 25
@@ -1550,11 +2761,11 @@ L_E778:
         sta  WNDTOP                 ; E794  85 22
         ldy  CV                     ; E796  A4 25
         lda  #$00                   ; E798  A9 00
-        sta  $1C61,y                ; E79A  99 61 1C
+        sta  FLAGS+1,y                ; E79A  99 61 1C
         iny                         ; E79D  C8
         cpy  WNDBTM                 ; E79E  C4 23
         bcc  L_E73A                 ; E7A0  90 98
-        lda  $1C61,y                ; E7A2  B9 61 1C
+        lda  FLAGS+1,y                ; E7A2  B9 61 1C
         bmi  L_E73A                 ; E7A5  30 93
         lda  WNDTOP                 ; E7A7  A5 22
         cmp  S_0559                 ; E7A9  CD 59 94
@@ -1574,7 +2785,7 @@ L_E7C1:
         cpy  WNDBTM                 ; E7C4  C4 23
         beq  L_E7C0                 ; E7C6  F0 F8
         sec                         ; E7C8  38
-        lda  $1C61,y                ; E7C9  B9 61 1C
+        lda  FLAGS+1,y                ; E7C9  B9 61 1C
         bmi  L_E7C0                 ; E7CC  30 F2
 L_E7CE:
         tya                         ; E7CE  98
@@ -1583,7 +2794,7 @@ L_E7CE:
 L_E7D4:
         ldy  CV                     ; E7D4  A4 25
 L_E7D6:
-        lda  $1C61,y                ; E7D6  B9 61 1C
+        lda  FLAGS+1,y                ; E7D6  B9 61 1C
         bmi  L_E7CE                 ; E7D9  30 F3
         dey                         ; E7DB  88
         bmi  L_E7E2                 ; E7DC  30 04
@@ -1599,7 +2810,7 @@ L_E7EA:
         bpl  L_E7F2                 ; E7ED  10 03
         jsr  L_E948                 ; E7EF  20 48 E9
 L_E7F2:
-        jsr  L_EAF1                 ; E7F2  20 F1 EA
+        jsr  CXREAD                 ; was jsr L_EAF1: the same, and Ctrl-X cancels the line (CXREAD)
         cmp  #$A0                   ; E7F5  C9 A0
         bcc  L_E83E                 ; E7F7  90 45
 L_E7F9:
@@ -1672,13 +2883,8 @@ L_E870:
 L_E871:
         rts                         ; E871  60
 L_E872:
-        lda  #$00                   ; E872  A9 00
-        sta  S_04D0                 ; E874  8D 28 94
-        jsr  L_E7D4                 ; E877  20 D4 E7
-        bcs  L_E871                 ; E87A  B0 F5
-        jsr  L_E60E                 ; E87C  20 0E E6
-        bcs  L_E871                 ; E87F  B0 F0
-        rts                         ; E881  60
+        jmp  FETCHCUR               ; was lda #$00 / sta S_04D0 / jsr L_E7D4 / bcs / jsr L_E60E / bcs / rts (16 bytes)
+        .res 13, $EA
 L_E882:
         lda  PROMPTCH               ; E882  A5 33
         cmp  #$DD                   ; E884  C9 DD
@@ -1866,7 +3072,7 @@ L_E9CB:
         bcs  L_E9E2                 ; E9D7  B0 09
         ldy  CV                     ; E9D9  A4 25
         lda  #$FF                   ; E9DB  A9 FF
-        sta  $1C61,y                ; E9DD  99 61 1C
+        sta  FLAGS+1,y                ; E9DD  99 61 1C
         bcc  L_E9CB+1               ; E9E0  90 EA
 L_E9E2:
         jmp  RESTCUR                ; E9E2  4C 02 EE
@@ -1923,7 +3129,7 @@ CLEARHOME:
         ldy  WNDTOP                 ; EA37  A4 22
         sty  CV                     ; EA39  84 25
         lda  #$FF                   ; EA3B  A9 FF
-        sta  $1C61,y                ; EA3D  99 61 1C
+        sta  FLAGS+1,y                ; EA3D  99 61 1C
         ldy  #$00                   ; EA40  A0 00
         sty  CH                     ; EA42  84 24
         jsr  SAVECUR                ; EA44  20 F7 ED
@@ -1937,7 +3143,7 @@ L_EA47:
         bcs  L_EA5F                 ; EA54  B0 09
         stx  CV                     ; EA56  86 25
         lda  #$FF                   ; EA58  A9 FF
-        sta  $1C61,x                ; EA5A  9D 61 1C
+        sta  FLAGS+1,x                ; EA5A  9D 61 1C
         bmi  L_EA47                 ; EA5D  30 E8
 L_EA5F:
         lsr  S_04D5                 ; EA5F  4E 2D 94
@@ -2128,6 +3334,7 @@ L_EBA3:
 ; Stock draw routines, patched to jump to the faster blit above
 ; ==========================================================================
 ENBLIT:
+.if SATURN
         ldx  #$00                   ; EBAA  A2 00
 EL:
         cpx  #$02                   ; EBAC  E0 04
@@ -2155,6 +3362,28 @@ ES2:
         lda  #$06                   ; EBD1  A9 06
         sta  P1L                    ; EBD3  85 02
         jmp  BLIT                   ; EBD5  4C 00 D4
+.else
+        ; plain card: the fast English draw in the second bank, see engfast.inc. Carry set = it did not draw (strip
+        ; buffer, overstrike or underline): GLY is built and P1L set, BLIT does it as before.
+        ldy  #$09                   ; the font is in the first bank, which ENGFAST cannot see: take the 10 rows of the glyph to GLY
+@fc:    lda  (P0L),y
+        sta  GLY,y
+        dey
+        bpl  @fc
+        bit  LCB1RD                 ; $C088: the second 4K bank ($D000), RAM read
+        jsr  ENGFAST
+        bit  LCRAMRD                ; $C080: back to the first bank
+        bcs  @blit
+        rts
+@blit:  jmp  BLIT
+        ; Hangul: the fast draw (HANFAST in engfast.inc) instead of KOFILL + BLIT; carry set = it did not draw: KOBLIT as before
+KOFAST: bit  LCB1RD
+        jsr  HANFAST
+        bit  LCRAMRD
+        bcs  KOBLIT
+        rts
+        .res 46-(*-ENBLIT), $EA     ; the old routine was 46 bytes: what follows stays where it was
+.endif
 KOBLIT:
         jsr  KOFILL                 ; EBD8  20 F1 FE
         lda  #$0C                   ; EBDB  A9 0C
@@ -2215,7 +3444,7 @@ L_EC35:
         bcc  L_EC34                 ; EC3F  90 F3
         ldy  CV                     ; EC41  A4 25
         lda  #$00                   ; EC43  A9 00
-        sta  $1C62,y                ; EC45  99 62 1C
+        sta  FLAGS+2,y                ; EC45  99 62 1C
         lda  #$00                   ; EC48  A9 00
         sta  CH                     ; EC4A  85 24
         beq  L_EC9A                 ; EC4C  F0 4C
@@ -2261,7 +3490,7 @@ L_EC8F:
 L_EC93:
         ldy  WNDBTM                 ; EC93  A4 23
         lda  #$FF                   ; EC95  A9 FF
-        sta  $1C61,y                ; EC97  99 61 1C
+        sta  FLAGS+1,y                ; EC97  99 61 1C
 L_EC9A:
         jsr  NLHOOK                 ; was inc CV / lda CV: in strip mode the row is shown first
         nop
@@ -2277,7 +3506,7 @@ L_ECAA:
         lda  BASH                   ; ECAE  A5 29
         sta  $2B                    ; ECB0  85 2B
         inx                         ; ECB2  E8
-        lda  $1C61,x                ; ECB3  BD 61 1C
+        lda  FLAGS+1,x                ; ECB3  BD 61 1C
         sta  FLAGS,x                ; ECB6  9D 60 1C
         txa                         ; ECB9  8A
         cmp  WNDBTM                 ; ECBA  C5 23
@@ -2365,13 +3594,8 @@ L_ED51:
         lda  HGRHI,x                ; ED59  BD 9C E1
         ora  $E6                    ; ED5C  05 E6
         sta  $FD                    ; ED5E  85 FD
-        lda  #$00                   ; ED60  A9 00
-        ldy  S_0552                 ; ED62  AC 52 94
-L_ED65:
-        sta  ($FC),y                ; ED65  91 FC
-        iny                         ; ED67  C8
-        cpy  #$28                   ; ED68  C0 28
-        bcc  L_ED65                 ; ED6A  90 F9
+        jsr  CLRROW                 ; was lda #$00 / ldy S_0552 / sta ($FC),y / iny / cpy #$28 / bcc: clear one pixel row from the column
+        .res 9, $EA                 ; S_0552 (CLRROW does it from the pixel, not from the byte with the column's number)
         inx                         ; ED6C  E8
         dec  S_0553                 ; ED6D  CE 53 94
         bne  L_ED51                 ; ED70  D0 DF
@@ -2396,8 +3620,8 @@ L_ED89:
         cpx  WNDTOP                 ; ED94  E4 22
         beq  L_EDAC                 ; ED96  F0 14
         dex                         ; ED98  CA
-        lda  $1C61,x                ; ED99  BD 61 1C
-        sta  $1C62,x                ; ED9C  9D 62 1C
+        lda  FLAGS+1,x                ; ED99  BD 61 1C
+        sta  FLAGS+2,x                ; ED9C  9D 62 1C
         txa                         ; ED9F  8A
         jsr  L_EC73                 ; EDA0  20 73 EC
 L_EDA3:
@@ -2408,7 +3632,7 @@ L_EDA3:
         bmi  L_ED89                 ; EDAA  30 DD
 L_EDAC:
         lda  #$FF                   ; EDAC  A9 FF
-        sta  $1C61,x                ; EDAE  9D 61 1C
+        sta  FLAGS+1,x                ; EDAE  9D 61 1C
         jsr  HSDN                   ; EDB1  20 D2 D5
         jmp  L_EDEF                 ; EDB4  4C EF ED
 SETUPX:
@@ -2585,7 +3809,11 @@ L_EEED:
         lda  #$8D                   ; EEF2  A9 8D
         lsr  S_04D6                 ; EEF4  4E 2E 94
         ldx  S_066C                 ; EEF7  AE 99 94
+.if SATURN
+        jmp  SatExit                ; EEFA  the stack is rewound after this, see SatExit
+.else
         jmp  S_0470                 ; EEFA  4C 20 94
+.endif
 MAPKEY:
         cmp  #$20                   ; EEFD  C9 20
         bcc  L_EF16                 ; EEFF  90 15
@@ -2749,12 +3977,24 @@ L_F01F:
         sec                         ; F022  38
         rts                         ; F023  60
 PACK:
+.if SATURN
         lda  #$80                   ; F024  A9 80
         sta  LEAD                   ; F026  8D 9E 94
         ldx  #$00                   ; F029  A2 00
 L_F02B:
         lda  D_E2DB,x               ; F02B  BD DB E2
         beq  L_F038                 ; F02E  F0 08
+.else
+        ; plain card: PACKF (engfast.inc, second bank) makes LEAD and TRAIL from CHO, JUNG, JONG and JONG2 by table lookup, in
+        ; place of the table scans below (about 600 cycles a syllable); it then plots them as the code below does. The 12 bytes
+        ; are those of the first five instructions; the old code after them is not reached (its labels stay where they were).
+        bit  LCB1RD
+        jsr  PACKF
+        bit  LCRAMRD
+        jmp  L_F097
+L_F02B = PACK + 7
+.endif
+.if SATURN
         cmp  CHO                    ; F030  CD A8 94
         beq  L_F03C                 ; F033  F0 07
         inx                         ; F035  E8
@@ -2823,6 +4063,31 @@ L_F08E:
 L_F091:
         ora  TRAIL                  ; F091  0D 9F 94
         sta  TRAIL                  ; F094  8D 9F 94
+.else
+        ; The old body of PACK (the table scans) is not reached on the plain card any more (see PACKF in engfast.inc). Its 103
+        ; bytes hold the helper of CURSOR; its labels stay as equates, because the raw table at D_F0A6 was written with
+        ; branches to some of them.
+CURHK:  lda  #$0C                   ; the cursor draws this many lines: the whole cell in English mode,
+        bit  HMODE
+        bpl  @e
+        lsr  a                      ; the upper half in Hangul mode (the flag HMODE has bit 7 set)
+@e:     sta  ROWI
+        rts
+        .res 103-(*-CURHK), $EA
+L_F038 = PACK + $14
+L_F03C = PACK + $18
+L_F03F = PACK + $1B
+L_F049 = PACK + $25
+L_F056 = PACK + $32
+L_F05A = PACK + $36
+L_F05D = PACK + $39
+L_F06D = PACK + $49
+L_F07B = PACK + $57
+L_F07D = PACK + $59
+L_F08A = PACK + $66
+L_F08E = PACK + $6A
+L_F091 = PACK + $6D
+.endif
 L_F097:
         lda  LEAD                   ; F097  AD 9E 94
         jsr  PLOTCH                 ; F09A  20 0E F1
@@ -2980,98 +4245,107 @@ DRAWKO:
         jsr  L_EC35                 ; F1C8  20 35 EC
 L_F1CB:
         jsr  DECODE                 ; F1CB  20 2E F3
-        lda  #$00                   ; F1CE  A9 00
-        ldx  #$1F                   ; F1D0  A2 1F
-L_F1D2:
-        sta  S_0750,x               ; F1D2  9D F1 94
-        dex                         ; F1D5  CA
-        bpl  L_F1D2                 ; F1D6  10 FA
-        ldy  JUNGI                  ; F1D8  AC A1 94
-        lda  D_E338,y               ; F1DB  B9 38 E3
-        ldx  JONGI                  ; F1DE  AE A2 94
-        beq  L_F1E6                 ; F1E1  F0 03
-        clc                         ; F1E3  18
-        adc  #$03                   ; F1E4  69 03
-L_F1E6:
-        asl  a                      ; F1E6  0A
-        tax                         ; F1E7  AA
-        lda  D_E25C,x               ; F1E8  BD 5C E2
-        sta  P0L                    ; F1EB  85 00
-        lda  D_E25D,x               ; F1ED  BD 5D E2
-        sta  P0H                    ; F1F0  85 01
-        lda  D_E26C,x               ; F1F2  BD 6C E2
-        ldy  CHOI                   ; F1F5  AC A0 94
-        jsr  L_F2DD                 ; F1F8  20 DD F2
-        lda  P0L                    ; F1FB  A5 00
-        sta  P1L                    ; F1FD  85 02
-        lda  P0H                    ; F1FF  A5 01
-        sta  P1H                    ; F201  85 03
-        lda  D_E26D,x               ; F203  BD 6D E2
-        bne  L_F212                 ; F206  D0 0A
-        lda  #$00                   ; F208  A9 00
-        sta  P0L                    ; F20A  85 00
-        lda  #$D8                   ; F20C  A9 D8
-        sta  P0H                    ; F20E  85 01
-        bne  L_F21A                 ; F210  D0 08
-L_F212:
-        lda  D_E26C,x               ; F212  BD 6C E2
-        ldy  #$14                   ; F215  A0 14
-        jsr  L_F2DD                 ; F217  20 DD F2
-L_F21A:
-        ldy  D_E26C,x               ; F21A  BC 6C E2
-        jsr  L_F304                 ; F21D  20 04 F3
-        ldx  JONGI                  ; F220  AE A2 94
-        beq  L_F227                 ; F223  F0 02
-        ldx  #$02                   ; F225  A2 02
-L_F227:
-        lda  D_E268,x               ; F227  BD 68 E2
-        sta  P0L                    ; F22A  85 00
-        lda  D_E269,x               ; F22C  BD 69 E2
-        sta  P0H                    ; F22F  85 01
-        lda  D_E278,x               ; F231  BD 78 E2
-        ldy  JUNGI                  ; F234  AC A1 94
-        jsr  L_F2DD                 ; F237  20 DD F2
-        lda  P0L                    ; F23A  A5 00
-        sta  P1L                    ; F23C  85 02
-        lda  P0H                    ; F23E  A5 01
-        sta  P1H                    ; F240  85 03
-        lda  D_E278,x               ; F242  BD 78 E2
-        ldy  #$16                   ; F245  A0 16
-        jsr  L_F2DD                 ; F247  20 DD F2
-        ldy  D_E278,x               ; F24A  BC 78 E2
-        jsr  L_F304                 ; F24D  20 04 F3
-        ldy  JONGI                  ; F250  AC A2 94
-        beq  L_F289                 ; F253  F0 34
-        lda  #$C4                   ; F255  A9 C4
-        sta  P0L                    ; F257  85 00
-        lda  #$DF                   ; F259  A9 DF
-        sta  P0H                    ; F25B  85 01
-        lda  #$05                   ; F25D  A9 05
-        jsr  L_F2DD                 ; F25F  20 DD F2
-        lda  P0L                    ; F262  A5 00
-        sta  P1L                    ; F264  85 02
-        lda  P0H                    ; F266  A5 01
-        sta  P1H                    ; F268  85 03
-        lda  #$8C                   ; F26A  A9 8C
-        ldy  #$00                   ; F26C  A0 00
-        clc                         ; F26E  18
-        jsr  L_F2FA                 ; F26F  20 FA F2
-        ldy  #$05                   ; F272  A0 05
-L_F274:
-        dey                         ; F274  88
-        lda  (P1L),y                ; F275  B1 02
-        ora  S_0759,y               ; F277  19 FA 94
-        sta  S_0759,y               ; F27A  99 FA 94
-        lda  (P0L),y                ; F27D  B1 00
-        ora  S_0769,y               ; F27F  19 0A 95
-        sta  S_0769,y               ; F282  99 0A 95
-        cpy  #$00                   ; F285  C0 00
-        bne  L_F274                 ; F287  D0 EB
-L_F289:
-        lda  S_06B0                 ; F289  AD A5 94
-        sta  S_076F                 ; F28C  8D 10 95
-        sta  S_075F                 ; F28F  8D 00 95
+        ; What follows up to L_F289 is the stock Hangeul2 way of building the glyph pieces: it fills the 32 bytes at
+        ; S_0750-S_076F ($94F1-$9510), which nothing reads any more (KOBLIT's KOFILL builds the glyph from the font by
+        ; itself). It was about 2,000 cycles of every syllable. Skipped; the bytes stay where they were.
+        jmp  DRAWKO2                ; was lda #$00 / ldx #$1F
+        .byte $EA
+; The stock glyph code that was here (192 bytes, up to DRAWKO2) cannot be reached; the stock code behind it must not move (raw
+; bytes with absolute addresses), so the space is used for line editing as stock GETLN does it, and the block keeps its size:
+;   FCHK, FETCHCUR  Return reads the line only up to where the typed text ends, so what the left arrow backed over is not in the
+;                   line. FETCHLINE starts at the first row of the line and stops at STOPCV/STOPCH (STOPCV = $A0: no stop).
+;   CXREAD          keeps ENDV/ENDH, the end of the typed text, and handles Ctrl-X (cancel the line)
+;   CLRROW          ESC E and ESC F clear from the pixel of the column (the stock code cleared from the byte with its number)
+FCHK:   lda  CV
+        cmp  STOPCV
+        bne  @go
+        cpy  STOPCH
+        bcc  @go
+        pla                             ; the return address of the jsr at L_E656
+        pla
+        jmp  L_E6C0                     ; the end of the line, as when the row ends
+@go:    lda  (BASL),y                   ; what L_E656 did
+        cmp  #$9F
+        rts
+FETCHCUR:                               ; L_E872: fetch the line up to where the typed text ends (ENDV/ENDH, see CXREAD).
+        lda  S_04D0                     ; A syllable still being composed is on the screen, but the cursor is in front of it:
+        beq  @c                         ; step over it (as L_E82C does when another key follows), or the fetch stops before it.
+        jsr  L_EBF1                     ; (The cursor was the end of the text, so it is again.)
+        jsr  L_EBF1
+        lda  CV
+        sta  ENDV
+        lda  CH
+        sta  ENDH
+@c:     lda  #$00
+        sta  S_04D0
+        lda  ENDV                       ; the fetch below starts at the first row of the line and stops at the end of the text
+        sta  STOPCV
+        lda  ENDH
+        sta  STOPCH
+        jsr  L_E7D4
+        bcs  @done
+        jsr  L_E60E
+@done:  lda  #$A0                       ; no stop for the other fetches (lda and sta keep the carry)
+        sta  STOPCV
+        rts
+CXREAD:                                 ; the key for the line editor. First the end of the typed text (ENDV/ENDH): the cursor as
+        lda  LESC                       ; the last key left it, unless that key was ESC: the cursor moves and clears of ESC leave
+        bne  @s                         ; the text alone, as stock GETLN's buffer is. Typing, left arrow and right arrow move the
+        lda  CV                         ; cursor and so the end; Return then reads the text up to the end, not up to the cursor.
+        sta  ENDV
+        lda  CH
+        sta  ENDH
+@s:     lda  #$00
+        sta  LESC
+        jsr  L_EAF1                     ; Ctrl-X ($98) cancels the line, as stock GETLN does: it prints "\" and a CR (no prompt, as
+        cmp  #$9B                       ; stock). The new row is a new line (the next Return fetches only that row). The key that
+        bne  @x                         ; goes on is $9F, which the editor's loop ignores.
+        sta  LESC                       ; ESC: the next key's end-of-text update is skipped
+@x:     cmp  #$98
+        bne  @r
+        lda  S_04D0                     ; a half-composed syllable is dropped, as L_E82C does
+        beq  @n
+        jsr  L_EBF1
+        jsr  L_EBF1
+        lda  #$00
+        sta  S_04D0
+@n:     lda  #$DC                       ; "\"
+        jsr  COUT
+        lda  #$8D
+        jsr  COUT
+        lda  #$9F
+@r:     rts
+CLRROW:                                 ; clear pixel row ($FC) from the text column S_0552 to the right edge. A cell is 6 pixels
+        ldy  S_0552                     ; wide and a byte holds 7, so column c starts at pixel 6c: in byte CRB, r pixels in (stock
+        lda  #$00                       ; cleared from the byte with the number c: ESC E and ESC F left what was left of it).
+        sta  CRB                        ; Step c times: add 6, and carry 7 into the byte number.
+@l:     dey
+        bmi  @d
+        clc
+        adc  #$06
+        cmp  #$07
+        bcc  @l
+        sbc  #$07
+        inc  CRB
+        bcs  @l
+@d:     tay                             ; Y = r: the first byte keeps its r low bits (the cells before the column)
+        lda  #$00
+@m:     dey
+        bmi  @e
+        sec
+        rol  a
+        bcc  @m
+@e:     sta  CRM
+        ldy  CRB
+        jmp  CLRTAIL                    ; (in the stock code that nothing reaches, at L_F304)
+        .assert * - FCHK <= 192, error, "the dead glyph code is only 192 bytes"
+        .res 192 - (* - FCHK), $EA
+DRAWKO2:
+.if SATURN
         jsr  KOBLIT                 ; F292  20 D8 EB
+.else
+        jsr  KOFAST                 ; (the plain card: HANFAST first, KOBLIT if that declines)
+.endif
         jmp  L_F2CC                 ; F295  4C CC F2
 PIXY:
         lda  CV                     ; F298  A5 25
@@ -3137,17 +4411,19 @@ L_F2FA:
         adc  P0H                    ; F2FF  65 01
         sta  P0H                    ; F301  85 01
         rts                         ; F303  60
-L_F304:
-        dey                         ; F304  88
-        lda  (P1L),y                ; F305  B1 02
-        ora  S_0751,y               ; F307  19 F2 94
-        sta  S_0751,y               ; F30A  99 F2 94
-        lda  (P0L),y                ; F30D  B1 00
-        ora  S_0761,y               ; F30F  19 02 95
-        sta  S_0761,y               ; F312  99 02 95
-        cpy  #$00                   ; F315  C0 00
-        bne  L_F304                 ; F317  D0 EB
-        rts                         ; F319  60
+CLRTAIL:                                ; was L_F304, 22 bytes that nothing reaches (it merged glyph pieces into the dead buffer).
+        lda  ($FC),y                ; The end of CLRROW: the first byte keeps the bits of the cells before the column (CRM), the
+        and  CRM                    ; rest of the pixel row to the right edge is cleared.
+        sta  ($FC),y
+        iny
+        lda  #$00
+@f:     cpy  #$28
+        bcs  @e
+        sta  ($FC),y
+        iny
+        bne  @f
+@e:     rts
+        .res 22 - (* - CLRTAIL), $EA
 L_F31A:
         jmp  SWAP6                  ; F31A  4C D3 EC
         .byte $00,$00               ; F31D
@@ -3300,7 +4576,7 @@ L_F3F9:
         lda  $75                    ; F412  A5 75
         sta  S_04DA                 ; F414  8D 32 94
 L_F417:
-        jsr  BELL                   ; F417  20 B0 1C
+        jsr  BELLC                  ; F417  20 B0 1C
         rts                         ; F41A  60
         jsr  L_F3DC                 ; F41B  20 DC F3
         ldx  #$D0                   ; F41E  A2 D0
@@ -4514,7 +5790,11 @@ L_FD68:
 ;   94DE  20 49 95  jsr S_07A8
 ;   94E1  4C C9 94  jmp S_0728
 
+.if SATURN
+        .byte $A2,$01,$20,$14,$94,$20,<SatRWm,>SatRWm,$CA,$F0,$0A,$C9,$88,$D0,$06,$20
+.else
         .byte $A2,$01,$20,$14,$94,$8D,$80,$C0,$CA,$F0,$0A,$C9,$88,$D0,$06,$20; FD91
+.endif
         .byte $1E,$94,$4C,$C9,$94,$20,$49,$95,$4C,$C9,$94,$68,$68,$60,$4C,$0B; FDA1
         .byte $EA,$4C,$C3,$E5,$4C,$56,$EE,$00; FDB1
 ; ---- stub block, copied by INIT to $9549 (old text page $07A8), 40 bytes ----
@@ -4538,21 +5818,36 @@ L_FD68:
 
         .byte $C9,$9F,$F0,$99,$2C,$30,$94,$30,$14,$C9,$8D,$F0,$8E,$C9,$92,$F0; FDB9
         .byte $93,$C9,$9A,$F0,$88,$C9,$9B,$F0,$85,$C9,$94,$F0,$84,$20,$20,$94; FDC9
+.if SATURN
+        .byte $20,<SatRWm,>SatRWm,$4C,$39,$EE,$00,$00
+.else
         .byte $8D,$80,$C0,$4C,$39,$EE,$00,$00; FDD9
+.endif
 ; ---- stub block, copied by INIT to $9400 (old text page $0450), 40 bytes ----
 ;   9400  8D 80 C0  sta LCRAMRD
 ;   9403  20 D3 EA  jsr KEYREAD
 ;   9406  8D 82 C0  sta LCROMRD
 ;   9409  60        rts
 
+.if SATURN
+        ; the entries from the caller: jsr SatEnter / jsr (KEYREAD or COUT) / jmp SatLeave1 / rts (10 bytes each)
+        .byte $20,<SatEnter,>SatEnter,$20,$D3,$EA,$4C,<SatLeave1,>SatLeave1,$60,$20,<SatEnter,>SatEnter,$20,$63,$EE
+        ; the stub at $9414 reads the character under the cursor BEFORE it switches the ROM in: the text buffer is in the bank
+        .byte $4C,<SatLeave1,>SatLeave1,$60,$A4,$24,$B1,$28,$8D,$82,$C0,$6C,$38,$00,$A9,$80
+.else
         .byte $8D,$80,$C0,$20,$D3,$EA,$8D,$82,$C0,$60,$8D,$80,$C0,$20,$63,$EE; FDE1
         .byte $8D,$82,$C0,$60,$8D,$82,$C0,$A4,$24,$B1,$28,$6C,$38,$00,$A9,$80; FDF1
+.endif
         .byte $8D,$82,$C0,$6C,$36,$00,$00,$00; FE01
 ; ---- stub block, copied by INIT to $9428 (old text page $04D0), 40 bytes ----
 ;   9428  00        brk
 
         .byte $00,$00,$FF,$00,$00,$00,$00,$00,$00,$20,$00,$00,$FF,$00,$8D,$82; FE09
+.if SATURN
+        .byte $C0,$20,$00,$D0,$20,<SatRWm,>SatRWm,$60,$8D,$82,$C0,$B1,$9D,$20,<SatRWm,>SatRWm
+.else
         .byte $C0,$20,$00,$D0,$8D,$80,$C0,$60,$8D,$82,$C0,$B1,$9D,$8D,$80,$C0; FE19
+.endif
         .byte $60,$00,$00,$00,$00,$00,$00,$00; FE29
 ; ---- stub block, copied by INIT to $9571 (old text page $07D0), 40 bytes ----
 ;   9571  8D 80 C0  sta LCRAMRD
@@ -4560,7 +5855,11 @@ L_FD68:
 ;   9577  8D 82 C0  sta LCROMRD
 ;   957A  60        rts
 
+.if SATURN
+        .byte $20,<SatEnter,>SatEnter,$4C,<CatwaitB,>CatwaitB,$EA,$EA,$EA,$EA,$00,<(ENGFONT-310),>(ENGFONT-310),$00,$00,$00
+.else
         .byte $8D,$80,$C0,$20,$83,$F8,$8D,$82,$C0,$60,$00,<ENGFONT,>ENGFONT,$00,$00,$00; FE31
+.endif
         .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00; FE41
         .byte $00,$00,$00,$00,$00,$00,$00,$00; FE51
 
@@ -4577,11 +5876,11 @@ PSETUP:
         adc  #$07                   ; FE63  69 07
         tay                         ; FE65  A8
 PW6:
-        lda  $1940,y                ; FE66  B9 40 19
+        lda  FMASK,y                ; FE66  B9 40 19
         sta  M0                     ; FE69  8D F0 1F
-        lda  $194E,y                ; FE6C  B9 4E 19
+        lda  FMASK+14,y             ; FE6C  B9 4E 19
         sta  M1                     ; FE6F  8D F1 1F
-        lda  $195C,y                ; FE72  B9 5C 19
+        lda  FMASK+28,y             ; FE72  B9 5C 19
         sta  M2                     ; FE75  8D F2 1F
         ldx  #$01                   ; FE78  A2 01
         lda  M1                     ; FE7A  AD F1 1F
@@ -4614,6 +5913,32 @@ PKM:
         sta  NM2                    ; FEB5  8D F5 1F
         rts                         ; FEB8  60
 MUL24:
+.if SATURN
+        sta  TMP                    ; A * 18 (the packed glyph size) in SUMLO/SUMHI; the name stays
+        lda  #$00
+        sta  SUMHI
+        lda  TMP
+        asl  a
+        rol  SUMHI                  ; 2A
+        sta  SUMLO
+        lda  SUMHI
+        sta  IDX
+        lda  SUMLO
+        asl  a
+        rol  SUMHI
+        asl  a
+        rol  SUMHI
+        asl  a
+        rol  SUMHI                  ; 16A
+        clc
+        adc  SUMLO
+        sta  SUMLO
+        lda  SUMHI
+        adc  IDX
+        sta  SUMHI
+        rts
+        .res 56-(*-MUL24), $EA
+.else
         sta  TMP                    ; FEB9  8D 8A 1C
         lda  #$00                   ; FEBC  A9 00
         sta  SUMHI                  ; FEBE  8D 8C 1C
@@ -4637,6 +5962,7 @@ MUL24:
         adc  IDX                    ; FEEA  6D 8D 1C
         sta  SUMHI                  ; FEED  8D 8C 1C
         rts                         ; FEF0  60
+.endif
 KOFILL:
         lda  JONGI                  ; FEF1  AD A2 94
         sta  T                      ; FEF4  8D 88 1C
@@ -4664,16 +5990,16 @@ NO3:
         jsr  MUL24                  ; FF27  20 B9 FE
         lda  SUMLO                  ; FF2A  AD 8B 1C
         clc                         ; FF2D  18
-        adc  #$00                   ; FF2E  69 00
+        adc  #<FCHOB                ; FF2E  69 00
         sta  a:P0L                  ; FF30  8D 00 00
         lda  SUMHI                  ; FF33  AD 8C 1C
-        adc  #$08                   ; FF36  69 08
+        adc  #>FCHOB                ; FF36  69 08
         sta  a:P0H                  ; FF38  8D 01 00
         jmp  CHOD                   ; FF3B  4C 48 FF
 ZCHO:
-        lda  #$28                   ; FF3E  A9 28
+        lda  #<FZEROG               ; FF3E  A9 28
         sta  a:P0L                  ; FF40  8D 00 00
-        lda  #$19                   ; FF43  A9 19
+        lda  #>FZEROG               ; FF43  A9 19
         sta  a:P0H                  ; FF45  8D 01 00
 CHOD:
         lda  JUNGI                  ; FF48  AD A1 94
@@ -4693,16 +6019,16 @@ JB:
         jsr  MUL24                  ; FF64  20 B9 FE
         lda  SUMLO                  ; FF67  AD 8B 1C
         clc                         ; FF6A  18
-        adc  #$B0                   ; FF6B  69 B0
+        adc  #<FJUNGB               ; FF6B  69 B0
         sta  a:P1L                  ; FF6D  8D 02 00
         lda  SUMHI                  ; FF70  AD 8C 1C
-        adc  #$12                   ; FF73  69 12
+        adc  #>FJUNGB               ; FF73  69 12
         sta  a:P1H                  ; FF75  8D 03 00
         jmp  JUD                    ; FF78  4C 85 FF
 ZJU:
-        lda  #$28                   ; FF7B  A9 28
+        lda  #<FZEROG               ; FF7B  A9 28
         sta  a:P1L                  ; FF7D  8D 02 00
-        lda  #$19                   ; FF80  A9 19
+        lda  #>FZEROG               ; FF80  A9 19
         sta  a:P1H                  ; FF82  8D 03 00
 JUD:
         lda  T                      ; FF85  AD 88 1C
@@ -4714,18 +6040,22 @@ JUD:
         jsr  MUL24                  ; FF91  20 B9 FE
         lda  SUMLO                  ; FF94  AD 8B 1C
         clc                         ; FF97  18
-        adc  #$A0                   ; FF98  69 A0
+        adc  #<FJONGB               ; FF98  69 A0
         sta  a:P2L                  ; FF9A  8D 04 00
         lda  SUMHI                  ; FF9D  AD 8C 1C
-        adc  #$16                   ; FFA0  69 16
+        adc  #>FJONGB               ; FFA0  69 16
         sta  a:P2H                  ; FFA2  8D 05 00
         jmp  ORL                    ; FFA5  4C B2 FF
 ZJ:
-        lda  #$28                   ; FFA8  A9 28
+        lda  #<FZEROG               ; FFA8  A9 28
         sta  a:P2L                  ; FFAA  8D 04 00
-        lda  #$19                   ; FFAD  A9 19
+        lda  #>FZEROG               ; FFAD  A9 19
         sta  a:P2H                  ; FFAF  8D 05 00
 ORL:
+.if SATURN
+        jmp  SatUnpack              ; the packed glyphs are read in the other $D000 page; the code is at $E000
+        .res 27, $EA
+.else
         ldx  #$00                   ; FFB2  A2 00
         ldy  #$00                   ; FFB4  A0 00
 OL:
@@ -4743,6 +6073,7 @@ OL:
         cpx  #$0C                   ; FFCB  E0 0C
         bne  OL                     ; FFCD  D0 E7
         rts                         ; FFCF  60
+.endif
 FASTMUL:
         cpy  #$08                   ; FFD0  C0 08
         bne  FM1                    ; FFD2  D0 1A
@@ -4779,36 +6110,42 @@ BN:
         jsr  BLINE                  ; 1CCE  20 60 1D
         jsr  BFREE                  ; 1CD1  20 73 1E
         jsr  BTAIL                  ; 1CD4  20 FD 1D
-        lda  a:$0074                ; 1CD7  AD 74 00
+        lda  $74                ; 1CD7  AD 74 00
         jsr  BHEX                   ; 1CDA  20 58 1E
-        lda  a:HIMEMZ               ; 1CDD  AD 73 00
+        lda  HIMEMZ               ; 1CDD  AD 73 00
         jsr  BHEX                   ; 1CE0  20 58 1E
-        lda  a:HIMEMZ               ; 1CE3  AD 73 00
+        lda  HIMEMZ               ; 1CE3  AD 73 00
         sta  NUM                    ; 1CE6  8D D8 1E
-        lda  a:$0074                ; 1CE9  AD 74 00
+        lda  $74                ; 1CE9  AD 74 00
         sta  NUMHI                  ; 1CEC  8D D9 1E
         jsr  BPAR                   ; 1CEF  20 86 1E
         jsr  BLOM                   ; 1CF2  20 2E 1E
-        lda  a:$006A                ; 1CF5  AD 6A 00
+        lda  $6A                ; 1CF5  AD 6A 00
         jsr  BHEX                   ; 1CF8  20 58 1E
-        lda  a:VARTAB               ; 1CFB  AD 69 00
+        lda  VARTAB               ; 1CFB  AD 69 00
         jsr  BHEX                   ; 1CFE  20 58 1E
-        lda  a:VARTAB               ; 1D01  AD 69 00
+        lda  VARTAB               ; 1D01  AD 69 00
         sta  NUM                    ; 1D04  8D D8 1E
-        lda  a:$006A                ; 1D07  AD 6A 00
+        lda  $6A                ; 1D07  AD 6A 00
         sta  NUMHI                  ; 1D0A  8D D9 1E
         jsr  BPAR                   ; 1D0D  20 86 1E
         lda  #$0D                   ; 1D10  A9 0D
         jsr  BEMIT                  ; 1D12  20 2B 1D
         lda  #$FF                   ; 1D15  A9 FF
-        sta  a:$0075                ; 1D17  8D 75 00
-        sta  a:$0076                ; 1D1A  8D 76 00
+        sta  $75                ; 1D17  8D 75 00
+        sta  $76                ; 1D1A  8D 76 00
         lda  #$00                   ; 1D1D  A9 00
-        sta  a:$00B8                ; 1D1F  8D B8 00
+        sta  $B8                ; 1D1F  8D B8 00
         lda  #$40                   ; 1D22  A9 40
-        sta  a:$00B9                ; 1D24  8D B9 00
-        sta  LCROMRD                ; 1D27  8D 82 C0
+        sta  $B9                ; 1D24  8D B9 00
+.if SATURN
+        CARDOFF                     ; 1D27  was sta LCROMRD
         rts                         ; 1D2A  60
+        .res 2, $EA
+.else
+        CARDON                      ; plain card: the banner has run, so its place in main RAM is given to the Korean error
+        jmp  KRC                    ; filter (KERRRES): KRC copies it there and leaves with the card off, as the rts did
+.endif
 BEMIT:
         ora  #$80                   ; 1D2B  09 80
         stx  BTMPX                  ; 1D2D  8E DF 1E
@@ -4821,14 +6158,14 @@ BHANG:
         stx  BTMPX                  ; 1D3D  8E DF 1E
         sta  HOLD                   ; 1D40  8D E2 1E
         sty  BTMPY                  ; 1D43  8C E0 1E
-        sta  LCRAMRD                ; 1D46  8D 80 C0
+        CARDON                      ; 1D46  was sta LCRAMRD
         ldx  #$00                   ; 1D49  A2 00
         lda  HOLD                   ; 1D4B  AD E2 1E
         jsr  PLOT2                  ; 1D4E  20 16 F1
         ldx  #$00                   ; 1D51  A2 00
         lda  BTMPX                  ; 1D53  AD DF 1E
         jsr  PLOT2                  ; 1D56  20 16 F1
-        sta  LCROMRD                ; 1D59  8D 82 C0
+        CARDOFF                     ; 1D59  was sta LCROMRD
         ldy  BTMPY                  ; 1D5C  AC E0 1E
         rts                         ; 1D5F  60
 BLINE:
@@ -4853,11 +6190,22 @@ BLINEX:
         rts                         ; 1D80  60
 BLINES:
 ; the first lines of the banner (before the free memory): johab pairs for Hangul, ASCII otherwise, $0D between lines
-        .byte $C4,$81,$CF,$69,$D0,$65,$8B,$69,$20,$76,$31,$2E,$30,$62,$20,$32
+        .assert .strlen(VERSION_TXT) = 4, error, "VERSION must be 4 characters"
+        .byte $C4,$81,$CF,$69,$D0,$65,$8B,$69,$20,"v",VERSION_TXT,$20,$32
         .byte $30,$32,$36,$91,$65,$20,$28,$D0,$65,$8B,$69,$32,$20,$AE,$81,$B8
+.if SATURN
+.export SatBannerDigit
+        .byte $F7,$A4,$E1,$B8,$E5,$29,$0D
+        .byte $24,$44,$30,$30,$30,$20,$AC,$81,$C8,$E5,$20,$C4,$61,$97,$61,$20,$A4,$97,$C7,$61            ; "$D000 " + the Korean for "Saturn card, bank"
+SatBannerDigit:
+        .byte $3F                              ; the bank number: the loader writes its digit here
+        .byte $B5,$41,$20,$9D,$A1,$97,$61,$96,$51,$20            ; "loaded" + one space, to keep the length
+        .byte $0D,$97,$A1,$AF,$61,$CF,$69,$9D,$41,$B7
+.else
         .byte $F7,$A4,$E1,$B8,$E5,$29,$0D,$24,$44,$30,$30,$30,$20,$A4,$E5,$BB
         .byte $A1,$20,$9C,$97,$8A,$E1,$BB,$A1,$20,$C4,$61,$97,$61,$B5,$41,$20
         .byte $9D,$A1,$97,$61,$96,$51,$0D,$97,$A1,$AF,$61,$CF,$69,$9D,$41,$B7
+.endif
         .byte $A1,$B6,$77,$B7,$61,$9D,$A1,$20,$48,$47,$52,$31,$20,$AC,$61,$B6
         .byte $77,$0D
 ; the screen size: English 6x10, 46 columns by 16 rows; Hangul 12x12, 23 columns by 16 rows
@@ -4880,6 +6228,7 @@ BTAIL:
 BLOM:
         ldy  #<(BLOMS-BLINES)
         jmp  BLINEL
+        .res $191 - (* - BN)        ; the resident part starts at $1E51 (BHEX): K-BASIC calls BHEX, BPAR, BDEC and NUM there
 BHEX:
         sta  HNIB                   ; 1E58  8D E1 1E
         lsr  a                      ; 1E5B  4A
@@ -4895,8 +6244,8 @@ BNIB:
         adc  #$06                   ; 1E6B  69 06
 BN1:
         adc  #$30                   ; 1E6D  69 30
-        jsr  BEMIT                  ; 1E6F  20 2B 1D
-        rts                         ; 1E72  60
+        jmp  BEMIT                  ; 1E6F
+
 BFREE:
         sec                         ; 1E73  38
         lda  #$00                   ; 1E74  A9 00
@@ -4905,8 +6254,8 @@ BFREE:
         lda  #$94                   ; 1E7B  A9 94
         sbc  $6A                    ; 1E7D  E5 6A
         sta  NUMHI                  ; 1E7F  8D D9 1E
-        jsr  BDEC                   ; 1E82  20 99 1E
-        rts                         ; 1E85  60
+        jmp  BDEC                   ; 1E82
+
 BPAR:
         lda  #$20                   ; 1E86  A9 20
         jsr  BEMIT                  ; 1E88  20 2B 1D
@@ -4914,8 +6263,8 @@ BPAR:
         jsr  BEMIT                  ; 1E8D  20 2B 1D
         jsr  BDEC                   ; 1E90  20 99 1E
         lda  #$29                   ; 1E93  A9 29
-        jsr  BEMIT                  ; 1E95  20 2B 1D
-        rts                         ; 1E98  60
+        jmp  BEMIT                  ; 1E95
+
 BDEC:
         ldx  #$04                   ; 1E99  A2 04
 BDIVS:
@@ -4968,28 +6317,30 @@ HNIB:
         .byte $00                   ; 1EE1
 HOLD:
         .byte $00                   ; 1EE2
+.if SATURN
+        .res 90                     ; CHECK, DRAWPR and WRAP are in the bank (see SatChecks)
+.else
 CHECK:
         lda  NOPR                   ; 1EE3  AD FB 1F
         bne  CKX                    ; 1EE6  D0 3F
         lda  PROMPTCH               ; INPUT's prompt character is $80: its answer starts right after the text
         cmp  #$80                   ; BASIC printed, so draw no "]" (direct mode has $DD here)
         beq  CKX
+        lda  CHAR                   ; the last thing drawn was a typed character: this is a wrapped row of the
+        cmp  #$20                   ; line being typed, not a fresh prompt (there it is the CR, $0D)
+        bcs  CKX
         ldy  #$00                   ; 1EE8  A0 00
         lda  (BASL),y               ; 1EEA  B1 28
         and  #$7F                   ; 1EEC  29 7F
         cmp  #$21                   ; 1EEE  C9 21
         bcs  CKX                    ; 1EF0  B0 35
-        cmp  #$20                   ; 1EF2  C9 20
-        bne  CKN                    ; 1EF4  D0 06
-        lda  CH                     ; 1EF6  A5 24
-        bne  CKX                    ; 1EF8  D0 2D
-        beq  CKP                    ; 1EFA  F0 0A
-CKN:
-        lda  CH                     ; 1EFC  A5 24
-        cmp  #$02                   ; 1EFE  C9 02
-        bcs  CKX                    ; 1F00  B0 25
-        lda  #$00                   ; 1F02  A9 00
-        sta  CH                     ; 1F04  85 24
+        cmp  #$20                   ; carry set: the first cell is a space
+        lda  CH
+        beq  CKP                    ; column 0: draw the prompt
+        bcs  CKX                    ; a space and not column 0: nothing to draw
+        cmp  #$02                   ; a control code: only in column 1,
+        bcs  CKX
+        lsr  CH                     ; which becomes column 0
 CKP:
         lda  HMODE                  ; 1F06  AD AC 94
         pha                         ; 1F09  48
@@ -5020,19 +6371,29 @@ DRAWPR:
 WRAP:
         jsr  CHECK                  ; 1F30  20 E3 1E
         jmp  L_EB98                 ; 1F33  4C 98 EB
+.endif
+.if SATURN
+CATWAIT_B:
+.else
 CATWAIT:
+.endif
         lda  #$01                   ; 1F36  A9 01
         sta  NOPR                   ; 1F38  8D FB 1F
-        lda  LCRAMRD                    ; $C080: the driver is visible while CATFIX runs
+        CARDON_LDA                      ; $C080: the driver is visible while CATFIX runs
         jsr  CATFIX
-        lda  LCROMRD                    ; $C082: back to ROM, as the stubs do
+        CARDOFF_LDA                     ; $C082: back to ROM, as the stubs do
         jsr  L_FD0C                 ; 1F3B  20 0C FD
-        pha                         ; 1F3E  48
-        lda  #$00                   ; 1F3F  A9 00
-        sta  NOPR                   ; 1F41  8D FB 1F
-        pla                         ; 1F44  68
-        rts                         ; 1F45  60
+        ldy  #$00                   ; Y is free (the ROM's RDKEY uses it), A and X must stay
+        sty  NOPR
+        cmp  #$83                   ; Ctrl-C ends the listing: DOS's own end of CATALOG ($AE2C, jmp $B37F). The file manager
+        bne  @k                     ; leaves with its saved stack pointer ($B39B), so the stack needs no tidying
+        jmp  $AE2C
+@k:     rts
+.if SATURN
+CATINIT_B:
+.else
 CATINIT:
+.endif
         sec                         ; 1F46  38
         lda  WNDBTM                 ; 1F47  A5 23
         sbc  CV                     ; 1F49  E5 25
@@ -5049,8 +6410,13 @@ CIS:
         sta  $B39D                  ; 1F5A  8D 9D B3
         rts                         ; 1F5D  60
 RELOC:
+.if SATURN
+        jmp  RELOCB                 ; the Korean font goes into the bank (the loader packs it): only the BASIC set-up below is left
+        nop
+.else
         lda  #$00                   ; 1F5E  A9 00
         sta  $06                    ; 1F60  85 06
+.endif
         lda  #$60                   ; 1F62  A9 60
         sta  $07                    ; 1F64  85 07
         lda  #$00                   ; 1F66  A9 00
@@ -5078,6 +6444,7 @@ FCD:
         lda  $1C80                  ; 1F90  AD 80 1C
         ora  $1C81                  ; 1F93  0D 81 1C
         bne  FCP                    ; 1F96  D0 E2
+RELOCB:
         lda  #$00                   ; 1F98  A9 00
         sta  $4000                  ; 1F9A  8D 00 40
         sta  $4001                  ; 1F9D  8D 01 40
@@ -5104,7 +6471,77 @@ FCD:
 ; the stock init (hooks, window, hi-res screen, banner). The init registers the driver's input and
 ; output routines with DOS ($AA53-$AA56) itself.
 ; ---------------------------------------------------------------------------
+.if SATURN
+HANMAIN_B:
+.else
 HANMAIN:
-        sta  LCRAMRD                ; $C080: language card RAM read
+.endif
+        CARDON                      ; $C080: language card RAM read
         jsr  STATEINIT
         rts
+; Ctrl-Reset: the ROM resets the hooks and the screen mode, then jumps through the vector at $03F2, which DOS keeps at its own
+; warm start ($9DBF). The loader points it here: start the driver again like the HAN command, then go on to DOS's warm start,
+; which puts DOS's hooks back and ends at the Applesoft prompt. The Saturn arrangement has no room in main RAM for this: the
+; loader writes the same six bytes into DOS's unused INT code ($A5A1).
+.if SATURN
+HANRST: .res 6
+.else
+HANRST: jsr  HANMAIN
+        jmp  $9DBF
+.endif
+
+; Main RAM stubs (they are here because the card is off while DOS runs; each one switches the card on and jumps to its routine on
+; the card, KMSGC, KFNC or KAL, which pushes the address to go on at and jumps to KEXIT: it switches the card off and does the rts).
+; KSTUB: DOS's message routine at $A702 (X = the message number). KFN: DOS's file name check at $A04D. KALS: DOS's code at $A000
+; for a line it does not know. BIT keeps A. The Saturn arrangement has not been given these yet (the space is kept).
+KSTUBSZ = 22
+.if SATURN
+KSTUB:
+        .res KSTUBSZ                ; not built for the Saturn arrangement
+.else
+KEXIT:  bit  LCROMRD
+        rts
+KSTUB:  bit  LCRAMRD
+        jmp  KMSGC
+KFN:    bit  LCRAMRD
+        jmp  KFNC
+KALS:   bit  LCRAMRD
+        jmp  KAL
+.assert * - KEXIT = KSTUBSZ, error, "KSTUBSZ is wrong"
+.endif
+
+; Saturn card: the Korean DOS code for bank 6, $D000 page 1 (kScheme leaves that page alone when K-HANGEUL is in bank 7).
+; SatFinish copies it there when the driver goes into bank 7. It runs from main RAM stubs (K6IN, in DOS's unused bytes
+; $BCDF, written by KPATCH6) that count the entry and map bank 6 page 1; it prints through K6PUT (the driver's $940A, then
+; bank 6 again) and leaves through SatLeave1 (bank 0 and the caller's card state). It does not depend on SATURN, so the
+; plain-and-patch-list build (build) carries the same bytes as the Saturn build.
+.segment "BANK6"
+.if SATLOAD
+.scope K6
+KX = $9521                          ; SatLeave1 (SATR1)
+KPUTC = $BCF5                       ; K6PUT
+KGUARD = 0
+.include "kdos_msg.inc"
+.include "kdos_cmd.inc"
+.include "kerr6.inc"
+.endscope
+.endif
+
+; the second 4K bank of the 16K language card ($D000, bank 1 in card terms): code and tables for the fast English draw. The
+; loader copies it there on a plain card; a Saturn card does not use it. It is the same in the Saturn build (the file
+; layout must be the same in both builds, see tools/satpack.py).
+; the Korean Applesoft error filter: in the file, behind the banner; runs at $1CC0 (the banner's place), see PBAN and KRC
+.segment "KERRRES"
+KERRSEG:
+.include "kerr.inc"                 ; (assembled in the Saturn build too, where nothing uses it: the file has the same layout in both)
+        .assert * - KERRSEG <= $191, error, "the Korean error filter does not fit in the banner's place ($1CC0-$1E50)"
+        ; (no padding: the file carries only what the filter uses; KRC copies __KERRRES_SIZE__ bytes)
+
+.segment "LCB1"
+.include "engfast.inc"
+
+; room for the patch lists (tools/satpack.py writes them here); empty when SATLOAD = 0
+.segment "SATDATA"
+.if SATLOAD
+        .res SATDATASIZE
+.endif
