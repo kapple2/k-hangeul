@@ -202,11 +202,11 @@ KFNC:   cmp  #$16
         jmp  KX
 KHASH:
         .word $096E                  ;  0 INIT 포맷
-        .word $9788                  ;  1 LOAD 불러오기
+        .word $12AC                  ;  1 LOAD 부르기
         .word $092E                  ;  2 SAVE 저장
         .word $1236                  ;  3 RUN 실행
         .word $116C                  ;  4 CHAIN 연결
-        .word $1250                  ;  5 DELETE 지우기
+        .word $0496                  ;  5 DELETE 제거
         .word $124B                  ;  6 LOCK 잠금
         .word $0960                  ;  7 UNLOCK 풀기
         .word $0874                  ;  8 CLOSE 닫기
@@ -225,7 +225,7 @@ KHASH:
         .word $09D7                  ; 21 MAXFILES 최대파일
         .word $FFFF                  ; 22 FP (AS IS)
         .word $10DC                  ; 23 HAN 한글
-        .word $0FCF                  ; 24 BSAVE 이진저장
-        .word $F998                  ; 25 BLOAD 이진불러오기
-        .word $0FD9                  ; 26 BRUN 이진가동
+        .word $242E                  ; 24 BSAVE 기저장
+        .word $48AC                  ; 25 BLOAD 기부르기
+        .word $2438                  ; 26 BRUN 기가동
         .word $0917                  ; 27 VERIFY 검사

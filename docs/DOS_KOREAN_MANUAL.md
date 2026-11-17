@@ -48,12 +48,12 @@ K-HANGEUL을 올리지 않은 DOS는 전과 같습니다. 영어로 쓰던 프�
 | 한글 | DOS | 한글 | DOS | 한글 | DOS |
 |---|---|---|---|---|---|
 | 포맷 | `INIT` | 닫기 | `CLOSE` | 감시 | `MON` |
-| 불러오기 | `LOAD` | 읽기 | `READ` | 감시끝 | `NOMON` |
+| 부르기 | `LOAD` | 읽기 | `READ` | 감시끝 | `NOMON` |
 | 저장 | `SAVE` | 일괄 | `EXEC` | 최대파일 | `MAXFILES` |
 | 실행 | `RUN` | 쓰기 | `WRITE` | 한글 | `HAN` |
-| 연결 | `CHAIN` | 자리 | `POSITION` | 이진저장 | `BSAVE` |
-| 지우기 | `DELETE` | 열기 | `OPEN` | 이진불러오기 | `BLOAD` |
-| 잠금 | `LOCK` | 이어쓰기 | `APPEND` | 이진가동 | `BRUN` |
+| 연결 | `CHAIN` | 자리 | `POSITION` | 기저장 | `BSAVE` |
+| 제거 | `DELETE` | 열기 | `OPEN` | 기부르기 | `BLOAD` |
+| 잠금 | `LOCK` | 이어쓰기 | `APPEND` | 기가동 | `BRUN` |
 | 풀기 | `UNLOCK` | 이름바꿈 | `RENAME` | 검사 | `VERIFY` |
 | 목록 | `CATALOG` | | | | |
 
@@ -68,8 +68,8 @@ K-HANGEUL을 올리지 않은 DOS는 전과 같습니다. 영어로 쓰던 프�
 목록                          (Ctrl-K 목록)
 저장 한글                     (파일 이름이 한글)
 저장 [Ctrl-A] T1              (파일 이름이 영어)
-이진저장 [Ctrl-A] B1,A$300,L4
-불러오기 한글
+기저장 [Ctrl-A] B1,A$300,L4
+부르기 한글
 최대파일 2
 ```
 

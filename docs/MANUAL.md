@@ -1,4 +1,4 @@
-# K-HANGEUL (캐플한글) v1.8 사용 설명서
+# K-HANGEUL (캐플한글) v1.9 사용 설명서
 
 > English version: [MANUAL_en.md](MANUAL_en.md)
 
@@ -291,18 +291,18 @@ K-HANGEUL을 올린 동안 DOS 3.3이 한글로 말합니다. 16K 랭귀지 카�
 | 한글 | DOS | 한글 | DOS | 한글 | DOS |
 |---|---|---|---|---|---|
 | 포맷 | `INIT` | 닫기 | `CLOSE` | 감시 | `MON` |
-| 불러오기 | `LOAD` | 읽기 | `READ` | 감시끝 | `NOMON` |
+| 부르기 | `LOAD` | 읽기 | `READ` | 감시끝 | `NOMON` |
 | 저장 | `SAVE` | 일괄 | `EXEC` | 최대파일 | `MAXFILES` |
 | 실행 | `RUN` | 쓰기 | `WRITE` | 한글 | `HAN` |
-| 연결 | `CHAIN` | 자리 | `POSITION` | 이진저장 | `BSAVE` |
-| 지우기 | `DELETE` | 열기 | `OPEN` | 이진불러오기 | `BLOAD` |
-| 잠금 | `LOCK` | 이어쓰기 | `APPEND` | 이진가동 | `BRUN` |
+| 연결 | `CHAIN` | 자리 | `POSITION` | 기저장 | `BSAVE` |
+| 제거 | `DELETE` | 열기 | `OPEN` | 기부르기 | `BLOAD` |
+| 잠금 | `LOCK` | 이어쓰기 | `APPEND` | 기가동 | `BRUN` |
 | 풀기 | `UNLOCK` | 이름바꿈 | `RENAME` | 검사 | `VERIFY` |
 | 목록 | `CATALOG` | | | | |
 
 치는 법:
-- Ctrl-K를 누르고 이름을 친 다음 공백을 칩니다. **영어** 파일 이름이나 옵션이 오면 먼저 Ctrl-A를 누릅니다: `저장 ` Ctrl-A `T1`, `이진저장 ` Ctrl-A `B1,A$300,L4`.
-- **한글** 파일 이름이면 그대로 한글을 이어 칩니다: `저장 한글`, `불러오기 한글`.
+- Ctrl-K를 누르고 이름을 친 다음 공백을 칩니다. **영어** 파일 이름이나 옵션이 오면 먼저 Ctrl-A를 누릅니다: `저장 ` Ctrl-A `T1`, `기저장 ` Ctrl-A `B1,A$300,L4`.
+- **한글** 파일 이름이면 그대로 한글을 이어 칩니다: `저장 한글`, `부르기 한글`.
 - 숫자는 바로 이어 쳐도 됩니다: `최대파일 2` (다만 10절의 "`MAXFILES`는 쓰지 마세요"를 보세요).
 - 이름은 줄의 첫 낱말이어야 합니다. 프로그램 안에서는 `CHR$(4)` 문자열에 넣습니다: `PRINT CHR$(4);"저장 T1"` (이름 앞에 Ctrl-K. 닫는 따옴표 앞에는 Ctrl-A가 필요 없음).
 
