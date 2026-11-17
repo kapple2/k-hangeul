@@ -1,4 +1,4 @@
-# K-HANGEUL (캐플한글) v1.9 user manual
+# K-HANGEUL (캐플한글) v1.10 user manual
 
 > 한국어: [MANUAL.md](MANUAL.md)
 
@@ -265,18 +265,18 @@ The error numbers for `ONERR GOTO` are unchanged.
 | Korean | DOS | Korean | DOS | Korean | DOS |
 |---|---|---|---|---|---|
 | 포맷 | `INIT` | 닫기 | `CLOSE` | 감시 | `MON` |
-| 부르기 | `LOAD` | 읽기 | `READ` | 감시끝 | `NOMON` |
+| 받기 | `LOAD` | 읽기 | `READ` | 감시끝 | `NOMON` |
 | 저장 | `SAVE` | 일괄 | `EXEC` | 최대파일 | `MAXFILES` |
 | 실행 | `RUN` | 쓰기 | `WRITE` | 한글 | `HAN` |
 | 연결 | `CHAIN` | 자리 | `POSITION` | 기저장 | `BSAVE` |
-| 제거 | `DELETE` | 열기 | `OPEN` | 기부르기 | `BLOAD` |
+| 제거 | `DELETE` | 열기 | `OPEN` | 기받기 | `BLOAD` |
 | 잠금 | `LOCK` | 이어쓰기 | `APPEND` | 기가동 | `BRUN` |
 | 풀기 | `UNLOCK` | 이름바꿈 | `RENAME` | 검사 | `VERIFY` |
 | 목록 | `CATALOG` | | | | |
 
 How to type them:
 - Press Ctrl-K, type the name, then a space. For an **English** file name or options, press Ctrl-A first: `저장 ` Ctrl-A `T1`, `기저장 ` Ctrl-A `B1,A$300,L4`.
-- For a **Hangul** file name just go on typing Hangul: `저장 한글`, `부르기 한글`.
+- For a **Hangul** file name just go on typing Hangul: `저장 한글`, `받기 한글`.
 - A number can follow directly: `최대파일 2` (but see "Do not use `MAXFILES`" in section 10).
 - The name must be the first word of the line. In a program, put it in the `CHR$(4)` string: `PRINT CHR$(4);"저장 T1"` (Ctrl-K before the name; no Ctrl-A is needed before the closing quote).
 

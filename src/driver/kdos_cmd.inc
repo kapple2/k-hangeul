@@ -202,7 +202,7 @@ KFNC:   cmp  #$16
         jmp  KX
 KHASH:
         .word $096E                  ;  0 INIT 포맷
-        .word $12AC                  ;  1 LOAD 부르기
+        .word $0934                  ;  1 LOAD 받기
         .word $092E                  ;  2 SAVE 저장
         .word $1236                  ;  3 RUN 실행
         .word $116C                  ;  4 CHAIN 연결
@@ -226,6 +226,6 @@ KHASH:
         .word $FFFF                  ; 22 FP (AS IS)
         .word $10DC                  ; 23 HAN 한글
         .word $242E                  ; 24 BSAVE 기저장
-        .word $48AC                  ; 25 BLOAD 기부르기
+        .word $2434                  ; 25 BLOAD 기받기
         .word $2438                  ; 26 BRUN 기가동
         .word $0917                  ; 27 VERIFY 검사

@@ -5,6 +5,12 @@
 The version number is written in one place only, the `VERSION` file at the top of the repository. The build takes the `v1.2b` text of the start-up banner from it.
 To raise the version, write a new entry at the top of this file and change the version text in the user manual (`docs/MANUAL.md`, `docs/MANUAL_en.md`) too.
 
+## 1.10 (2026-11-17)
+
+- **Two Korean DOS command names changed again (the fix for the 1.9 clash).** `LOAD` 부르기 -> **받기**, `BLOAD` 기부르기 -> **기받기**. The 1.9 name `부르기` clashed with KBASIC's `CALL` word (since KBASIC 1.0): with KBASIC loaded, `부르기 file` was turned by KBASIC into `CALL file` and jumped into the monitor, and `기부르기` was read as `기` + `CALL` and gave `?문법 오류`. `CALL` stays `부르기`, so the DOS names changed. The new hashes are `$0934` (`받기`) and `$2434` (`기받기`); the 25 names have different hashes. `제거`, `기저장`, `기가동` and the other names are as in 1.9. Neither new name contains a KBASIC word (`받기` is part of `키받기` (GET), but the driver recognises only the whole first word of a line, so `키받기` is not read as a DOS command). Checked in MAME on the 16K card and the Saturn card, without KBASIC and with it: `받기`, `기받기`, `기가동` and `제거` with a missing file give `파일없음`; the old name `부르기` gives `문법 오류` without KBASIC; with KBASIC loaded, `키받기 A$` at the start of a line is read as GET (`?직접불가 오류`: GET is not allowed in direct mode) and does not go to DOS. The file size is the same (20,390 bytes).
+- Manual and tables (`MANUAL.md`, `MANUAL_en.md`, `DOS_KOREAN_MANUAL.md`, `KOREAN_DOS_TABLES.txt`).
+- Version 1.10 (`v1.10` on the start-up banner). Do not use 1.9: `부르기` clashes with KBASIC.
+
 ## 1.9 (2026-11-17)
 
 - **Five Korean DOS command names changed.** `LOAD` 불러오기 -> **부르기**, `DELETE` 지우기 -> **제거**, `BSAVE` 이진저장 -> **기저장**, `BLOAD` 이진불러오기 -> **기부르기**, `BRUN` 이진가동 -> **기가동**. A name is recognised by a 16-bit hash of its keystrokes (`KHASH` in `src/driver/kdos_cmd.inc`), so only five hashes changed: `$12AC`, `$0496`, `$242E`, `$48AC`, `$2438`. The formula that makes the new values was checked to reproduce all 25 old hashes, and the 25 names have different hashes. The old names (`불러오기`, `지우기`, `이진저장`, `이진불러오기`, `이진가동`) are no longer commands and give `?문법 오류`. The other names are as they were. Both cards use the same `kdos_cmd.inc`. Checked in MAME on the 16K card and the Saturn card: `부르기`, `제거`, `기부르기` and `기가동` with a missing file give `파일없음`, `기저장` makes the file, and the old names give `문법 오류`. The file size is the same (20,390 bytes).
