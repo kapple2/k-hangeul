@@ -296,6 +296,26 @@ How to type them:
 - With KBASIC loaded, `실행` and `읽기` are also KBASIC words; KBASIC turns them into `RUN` and `READ` itself, which gives the same result. KBASIC also changes its own words inside Hangul file names, so avoid KBASIC words in file names.
 
 
+## 8a. Korean Applesoft error messages
+
+The errors that Applesoft BASIC itself prints are in Korean too (version 1.4 for the 16K card, 1.5 for the Saturn card): `?UNDEF'D STATEMENT ERROR IN 10` shows as `?줄 없음 오류 줄 10`. ` ERROR` becomes ` 오류` and ` IN ` becomes ` 줄 `; the line number and the beep are the ROM's. Only the text changes: the error numbers (`PEEK(222)`, `ONERR GOTO`) are the same.
+
+| Applesoft | Korean | Applesoft | Korean |
+|---|---|---|---|
+| `NEXT WITHOUT FOR` | FOR 없음 | `BAD SUBSCRIPT` | 첨자 |
+| `SYNTAX` | 문법 | `REDIM'D ARRAY` | 배열 중복 |
+| `RETURN WITHOUT GOSUB` | GOSUB 없음 | `DIVISION BY ZERO` | 0으로 나눔 |
+| `OUT OF DATA` | 자료 끝 | `ILLEGAL DIRECT` | 직접 불가 |
+| `ILLEGAL QUANTITY` | 범위 | `TYPE MISMATCH` | 형 다름 |
+| `OVERFLOW` | 넘침 | `STRING TOO LONG` | 문자열 김 |
+| `OUT OF MEMORY` | 메모리 부족 | `FORMULA TOO COMPLEX` | 식 복잡 |
+| `UNDEF'D STATEMENT` | 줄 없음 | `CAN'T CONTINUE` | 계속 불가 |
+| `UNDEF'D FUNCTION` | 함수 없음 | | |
+
+- Each line is "`?` + text + ` 오류`", for example `?0으로 나눔 오류`. `BREAK IN 100` (Ctrl-C) and the messages of `INPUT` (`?REENTER`, `?EXTRA IGNORED`) stay English.
+- It works only while DOS's output hook is in the chain (the normal case). After `PR#0`, or with a program that points `CSW` at the driver directly, the text stays English.
+- It works with the KBASIC add-on, and on the II Plus, IIe and IIc (checked in MAME).
+
 ## 9. Using it on your own DOS 3.3 disk
 
 Copy four things to your disk with AppleCommander, CiderPress or similar:
@@ -312,7 +332,7 @@ It needs standard 48K DOS 3.3. `BRUN K-HANGEUL` clears the BASIC program in memo
 
 ## 10. Good to know
 
-- **`HAN`**: if the driver is switched off by `PR#0` or `IN#0`, type `HAN` to switch it on again (the screen is cleared). **Ctrl-Reset** needs no `HAN`: the ROM puts the screen back in text mode, but the driver then runs `HAN` by itself and goes on to DOS's own restart, so the Hangul screen and the `]` prompt come back at once (on the 16K card the start-up banner is drawn again). The BASIC program is kept. This is set up only if DOS's reset vector is still DOS's own warm start. Checked with MAME's Ctrl-Reset key; not tried on a real machine.
+- **`HAN`**: if the driver is switched off by `PR#0` or `IN#0`, type `HAN` to switch it on again (the screen is cleared). **Ctrl-Reset** needs no `HAN`: the ROM puts the screen back in text mode, but the driver then runs `HAN` by itself and goes on to DOS's own restart, so the Hangul screen and the `]` prompt come back at once (since 1.4 the start-up banner is not drawn again: it runs only at boot). The BASIC program is kept. This is set up only if DOS's reset vector is still DOS's own warm start. Checked with MAME's Ctrl-Reset key; not tried on a real machine.
 - **`HOME`** clears the Hangul screen. `CATALOG` pauses after each 16-row page.
 - **Do not use `HGR2`.** Applesoft's `HGR` and `HGR2` are in ROM and cannot be blocked. `HGR2` clears the memory where the BASIC program lives (`$4000–$5FFF`). **`HGR`** clears the Hangul screen and turns the bottom four rows into the text window. `TEXT` and `GR` also change the display mode. If you used one by mistake, try `HAN`: it sets the hi-res screen up again (not tested after `HGR`; a program that `HGR2` has cleared does not come back).
 - **Do not use `MAXFILES`** (`최대파일`): it removes the protection of the memory the driver uses.

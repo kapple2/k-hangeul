@@ -118,7 +118,9 @@ You should see `HELLO`, `K-HANGEUL`, `FONT12`, `FONT6X10`, `TYPE`, `TYPEC`, `STY
 
 **Change the font.** Run `src\fonteditor\run_editor.bat`, edit `font.json`, then run `build.bat` again.
 
-**Change the driver.** Edit `src\driver\driver.s` and `defs.inc`, then run `build.bat`. Do not patch the binaries: the source is assembly.
+**Change the driver.** Edit `src\driver\driver.s` and `defs.inc` (or `kerr.inc`, `kerr6.inc`, `kdos_msg.inc`, `kdos_cmd.inc`), then run `build.bat`. Do not patch the binaries: the source is assembly.
+
+**Change an error message text.** The Korean texts of the Applesoft errors and of the DOS messages are in the table at the top of `src	ools\genkerr.py`. Run `py -3 src	ools\genkerr.py`: it remakes `kerr_text.inc`, `kerr6_text.inc` and `kdos_johab.inc` (they are committed, and `build.bat` does not run the tool), then run `build.bat`. The 16K card's filter has `$191` bytes (`$1CC0-$1E50`, an assert checks) and the file must end before `$6000` (the `MAIN` area of `driver.cfg` checks that; 22 bytes were left in 1.5).
 
 **Change the sample text.** Edit the UTF-8 files in `src\samples\utf8txt\`, then run `build.bat` (see `src\samples\README.md`).
 

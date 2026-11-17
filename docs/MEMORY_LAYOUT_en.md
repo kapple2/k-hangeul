@@ -24,7 +24,7 @@ See `DOS_PATCHES_en.md` for the changes made to DOS 3.3 in RAM.
 | Row flags | `$1C60` |
 | Blit scratch | `$1C80–$1CAF` |
 | ROM bell and mode bytes | `$1CB0–$1CBC` |
-| Startup banner and the prompt and CATALOG helpers | `$1CC0–$1FCE`, 783 bytes |
+| Startup banner and the prompt and CATALOG helpers | `$1CC0–$1FCE`, 783 bytes. Since 1.4 (16K card) `$1CC0–$1E50` holds the banner code only until it has run, then the Korean error filter (see below) |
 | Blit variables (masks, byte count, row index, inverse masks) | `$1FF0–$1FFB`, 12 bytes |
 | Screen, 16 rows × 12 pixels | hi-res page 1, `$2000–$3FFF` |
 | BASIC program, variables, and strings | `$4001–$93FF` |
@@ -33,7 +33,7 @@ See `DOS_PATCHES_en.md` for the changes made to DOS 3.3 in RAM.
 | Hangeul2 driver | language card, `$D000–$FFFF` |
 | English font, 128 glyphs × 16 bytes (10 lines used) | language card, `$D860–$E05F`, 2,048 bytes (loaded from `FONT6X10` at `$7200`, copied by `INIT`) |
 
-`$7200–$79FF` is only a staging area: `HELLO` loads `FONT6X10` there and `INIT` copies it into the card, so the BASIC program may use that area afterwards. `$D000–$D0AF` holds the Shift mod, Ctrl-A and strip-mode routines (`FIXCONT` to `SHREPL`). `$1CBD` is one byte of the driver's state: bit 7 set on an Apple IIe, IIc or IIgs (set by the loader). `$D0B0–$D132` holds `CATFIX` (the `CATALOG` prompt fix) and the two hooks for the optional KBASIC add-on (`KBIN`, `KBOUT`); `$D133–$D3FF` was free (717 bytes); the Korean DOS messages, the CATALOG header, `KPATCH` and the INIT guard now use it, and 5 bytes are left (16K card build). The first 512 bytes of the English font area, `$D860–$DA5F` (the empty glyphs of control codes 0–31, which `INIT` no longer copies), hold the Korean command-name code and the INIT guard's table and flag; 1 byte is left. See `DOS_PATCHES_en.md` section 5. The old 6×8 English table that was there is gone. When the KBASIC add-on is loaded it sits in main RAM at `$8A00–$93FF` and lowers `HIMEM` to `$8A00` (see the KBASIC documents in the Korean BASIC project). The English glyph is found with `base + code × 16`.
+`$7200–$79FF` is only a staging area: `HELLO` loads `FONT6X10` there and `INIT` copies it into the card, so the BASIC program may use that area afterwards. `$D000–$D0AF` holds the Shift mod, Ctrl-A and strip-mode routines (`FIXCONT` to `SHREPL`). `$1CBD` is one byte of the driver's state: bit 7 set on an Apple IIe, IIc or IIgs (set by the loader). `$D0B0–$D132` holds `CATFIX` (the `CATALOG` prompt fix) and the two hooks for the optional KBASIC add-on (`KBIN`, `KBOUT`); `$D133–$D3FF` was free (717 bytes); the Korean DOS messages, the CATALOG header, `KPATCH` and the INIT guard now use it, and since 1.4 the Korean DOS texts are johab pairs (95 bytes less) and `KBOUT` calls the Korean error filter, `PBAN` and `KRC` are here: 87 bytes are left (16K card build), 1 on the Saturn card (the same block is full there). The first 512 bytes of the English font area, `$D860–$DA5F` (the empty glyphs of control codes 0–31, which `INIT` no longer copies), hold the Korean command-name code and the INIT guard's table and flag; 1 byte is left. See `DOS_PATCHES_en.md` section 5. The old 6×8 English table that was there is gone. When the KBASIC add-on is loaded it sits in main RAM at `$8A00–$93FF` and lowers `HIMEM` to `$8A00` (see the KBASIC documents in the Korean BASIC project). The English glyph is found with `base + code × 16`.
 
 `$0800–$1FFF` is 6,144 bytes. The pieces above use 6,051 of them. Of the 93 free bytes, `$1FCF–$1FE4` (22 bytes) now hold the main RAM stubs of the Korean DOS work (`KEXIT`, `KSTUB`, `KFN`, `KALS`), so 71 bytes were left; the 11 right after the stubs (`$1FE5–$1FEF`) are now used by the Ctrl-C check in `CATWAIT` (5 bytes) and by `HANRST`, the Ctrl-Reset stub (6 bytes). The banner segment (`$1CC0–$1FEF`) is full, and the stubs moved to `$1FDA–$1FEF`. DOS's unused bytes `$BCDF–$BCFD` hold the INIT guard's stubs.
 
@@ -95,7 +95,7 @@ A 16K language card has its `$D000-$DFFF` in two 4K banks: bank 2 (the one the d
 - `KBOUT` (the start of `COUT`) does `bit PBANOK / bmi` and calls `KEFILT` only when the banner has run: before that the filter's place still holds the banner. `KEFILT` keeps `A`, `X` and `Y` and uses `KEA/KEX/KEY` (`$94F8-$94FA`, the dead glyph buffer) and the zero page pointer `KPL` (`$1A/$1B`; the draw code clobbers `$06/$07`, so those cannot be used). `KBASIC`'s `BHEX`, `BPAR`, `BDEC` and `NUM` stay at `$1E51-$1ED0`.
 - Saturn card (1.5): the filter is in bank 6, page 1 (`kerr6.inc`, scope `K6`, keystroke text); see the 1.5 entry of `CHANGELOG_en.md`. The file carries `KERRRES` there too (so both builds have the same layout) but nothing copies it. The file must end before `$6000` (22 bytes left: `MAIN` in `driver.cfg` enforces it).
 
-## Saturn 128KB card (draft, not built yet)
+## Saturn 128KB card (the design, as built; the heading is from the draft)
 
 > Status: a design draft on the `saturn` branch. No code has changed, and anything marked "undecided" below has not been settled. It is written down first so that the kScheme side can design its console hook against it.
 

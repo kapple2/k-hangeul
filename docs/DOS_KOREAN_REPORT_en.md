@@ -2,6 +2,8 @@
 
 > 한국어: [DOS_KOREAN_REPORT.md](DOS_KOREAN_REPORT.md)
 
+> **Update (1.4/1.5).** This report is the record of the DOS work and is not rewritten. Since then: the 16K card's DOS texts are johab pairs printed by `KPUTS` (`kdos_johab.inc`), not keystroke text (the Saturn card still uses keystroke text in bank 6); `K6FN` also serves the Korean Applesoft error filter; `HAN` no longer reprints the banner on the 16K card. See `CHANGELOG_en.md` 1.4 and 1.5 and `MEMORY_LAYOUT_en.md`.
+
 This report is for your review. It asks what in DOS 3.3 is worth showing or accepting in Korean, what each piece costs in memory and work, and what cannot be done. **Nothing here is built into the driver or DOS.** Three things were tried in MAME (section 5.3): Korean file names, `RUN` and `BRUN` with them, and the comma problem. Everything else is read from the DOS dump or estimated, and says "estimate".
 
 How the facts were found: the DOS on `disk\K-HANGEUL.DSK` was booted in MAME and its memory (`$9600-$BFFF`) was dumped and disassembled with `da65`. Addresses are for that DOS (patched by this project as in `DOS_PATCHES_en.md`). Message sizes were computed with `src\tools\nbyte.py`.

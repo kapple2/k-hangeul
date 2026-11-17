@@ -5,14 +5,14 @@
 
 | 폴더 / 파일 | 무엇인가 | 결과물 |
 |---|---|---|
-| `driver/` | K-HANGEUL 한글 드라이버. `driver.s`(본체), `defs.inc`(이름 정의), `driver.cfg`(링크 설정), `build.bat` / `Makefile`(빌드), `fontgen.py`(`font.json`을 글꼴 파일로 바꿈), `hello.bas`(디스크 부팅 프로그램 `HELLO`), `demo.bas`(예제 `DEMO`), `../docs/MEMORY_LAYOUT.md`(메모리 배치), `../docs/DOS_PATCHES.md`(DOS에 하는 패치) | `build/K-HANGEUL.bin`, `build/FONT12.bin`, `build/FONT6X10.bin` |
+| `driver/` | K-HANGEUL 한글 드라이버. `driver.s`(본체), `defs.inc`(이름 정의), `kdos_msg.inc`/`kdos_cmd.inc`(한글 DOS), `kerr.inc`/`kerr6.inc`(애플소프트 오류 한글 필터; 문구는 `genkerr.py`가 만든 `kerr_text.inc`, `kerr6_text.inc`, `kdos_johab.inc`), `driver.cfg`/`driver_sat.cfg`(링크 설정), `build.bat` / `Makefile`(빌드), `fontgen.py`(`font.json`을 글꼴 파일로 바꿈), `hello.bas`(디스크 부팅 프로그램 `HELLO`), `demo.bas`(예제 `DEMO`), `../docs/MEMORY_LAYOUT.md`(메모리 배치), `../docs/DOS_PATCHES.md`(DOS에 하는 패치) | `build/K-HANGEUL.bin`, `build/FONT12.bin`, `build/FONT6X10.bin` |
 | `type/` | `&TYPE` 명령. `type.s`, `core.inc`(파일 읽기 코드, `typec`과 `stype`도 씀), `../docs/TYPE.md`, 예제 `typedemo.bas`, `storyt.bas`, `sampleb.bin` | `build/TYPE.bin` |
 | `typec/` | `TYPEC`. `&` 명령 없이 `]` 프롬프트에서 파일을 찍는 프로그램 | `build/TYPEC.bin` |
 | `stype/` | `&STYPE` 명령(픽셀 줄이 펼쳐지는 효과). `stype.s`, `score.inc`(줄 그리기 루틴, `stypec`도 씀), `../docs/STYPE.md`, 예제 `stypedemo.bas`, `storys.bas` | `build/STYPE.bin` |
 | `stypec/` | `STYPEC`. `STYPE` 효과를 파일 이름을 물어보는 프로그램으로 만든 것 | `build/STYPEC.bin` |
 | `fonteditor/` | 글꼴 편집기. `editor.py`(편집기), `run_editor.bat`(실행), `font.json`(드라이버가 그리는 모든 글리프), `../docs/FONT_EDITOR.md` | 편집 결과는 `font.json`에 저장 |
 | `samples/` | 디스크에 올라가는 예제 글. 「날개」 `NALGAE1`-`16`(N바이트 형식), `mixed.bas`, `story.bas`. `utf8txt/`는 같은 글의 UTF-8 사본(편집용). 자세한 설명은 `samples/README.md` | 디스크 파일 |
-| `tools/` | `mkdist.py`(디스크와 `DIST` 만들기), `nbyte.py`(N바이트 ↔ UTF-8), `render/`(글꼴 그림), `disasm/`(옛 드라이버를 풀던 기록), `oneoff/`(한 번만 실행한 고침 도구의 기록). 자세한 설명은 `tools/README.md` | `DIST\K-HANGEUL.DSK` 등(mkdist), 그 밖은 파일 |
+| `tools/` | `mkdist.py`(디스크와 `DIST` 만들기), `nbyte.py`(N바이트 ↔ UTF-8), `genkerr.py`(오류 메시지 문구 만들기), `satpack.py`(Saturn 차이 목록), `render/`(글꼴 그림), `disasm/`(옛 드라이버를 풀던 기록), `oneoff/`(한 번만 실행한 고침 도구의 기록). 자세한 설명은 `tools/README.md` | `DIST\K-HANGEUL.DSK` 등(mkdist), 그 밖은 파일 |
 | `legacy/` | 옛 도구. `nprint.s`(NPRINT, 79바이트 인쇄 루틴)와 옛 빌드 도구 설명 (`legacy/README.md`) | 옛 기록 |
 | `make_all.bat` / `Makefile` | 모든 것을 한 번에 만듭니다. 다섯 프로그램을 빌드하고 `mkdist.py`를 실행합니다 | 아래 "빌드 결과" 참고 |
 | `README.md`, `PYTHON.md` | 이 설명, Python 설정(패키지 목록 `requirements.txt`는 저장소 맨 위에 있음) | |
@@ -53,14 +53,14 @@ make_all.bat clean      빌드 폴더와 DIST를 지움 (저장소 맨 위의 cl
 
 | folder / file | what it is | output |
 |---|---|---|
-| `driver/` | the K-HANGEUL Hangul driver: `driver.s` (the whole driver), `defs.inc` (names), `driver.cfg` (link layout), `build.bat` / `Makefile` (build), `fontgen.py` (turns `font.json` into the font files), `hello.bas` (the boot program `HELLO`), `demo.bas` (the example `DEMO`), `../docs/MEMORY_LAYOUT.md` (memory map), `../docs/DOS_PATCHES.md` (what is patched in DOS) | `build/K-HANGEUL.bin`, `build/FONT12.bin`, `build/FONT6X10.bin` |
+| `driver/` | the K-HANGEUL Hangul driver: `driver.s` (the driver), `defs.inc` (names), `kdos_msg.inc` / `kdos_cmd.inc` (Korean DOS), `kerr.inc` / `kerr6.inc` (the Korean Applesoft error filter; its texts are `kerr_text.inc`, `kerr6_text.inc` and `kdos_johab.inc`, made by `genkerr.py`), `driver.cfg` / `driver_sat.cfg` (link layout), `build.bat` / `Makefile` (build), `fontgen.py` (turns `font.json` into the font files), `hello.bas` (the boot program `HELLO`), `demo.bas` (the example `DEMO`), `../docs/MEMORY_LAYOUT.md` (memory map), `../docs/DOS_PATCHES.md` (what is patched in DOS) | `build/K-HANGEUL.bin`, `build/FONT12.bin`, `build/FONT6X10.bin` |
 | `type/` | the `&TYPE` command: `type.s`, `core.inc` (the file reader, also used by `typec` and `stype`), `../docs/TYPE.md`, examples `typedemo.bas`, `storyt.bas`, `sampleb.bin` | `build/TYPE.bin` |
 | `typec/` | `TYPEC`: prints a file at the `]` prompt, without the `&` command | `build/TYPEC.bin` |
 | `stype/` | the `&STYPE` command (rows unroll pixel by pixel): `stype.s`, `score.inc` (the row-drawing routines, also used by `stypec`), `../docs/STYPE.md`, examples `stypedemo.bas`, `storys.bas` | `build/STYPE.bin` |
 | `stypec/` | `STYPEC`: the `STYPE` effect as a program that asks for a file name | `build/STYPEC.bin` |
 | `fonteditor/` | the font editor: `editor.py`, `run_editor.bat` (starts it), `font.json` (every glyph the driver draws), `../docs/FONT_EDITOR.md` | edits are saved in `font.json` |
 | `samples/` | the sample text that goes on the disk: the story `NALGAE1`-`16` (N-byte format), `mixed.bas`, `story.bas`. `utf8txt/` holds UTF-8 copies for editing. See `samples/README.md` | disk files |
-| `tools/` | `mkdist.py` (makes the disk and `DIST`), `nbyte.py` (N-byte ↔ UTF-8), `render/` (font pictures), `disasm/` (record of how the old driver was taken apart), `oneoff/` (record of the one-time edit scripts). See `tools/README.md` | `DIST\K-HANGEUL.DSK` and others (mkdist); files otherwise |
+| `tools/` | `mkdist.py` (makes the disk and `DIST`), `nbyte.py` (N-byte ↔ UTF-8), `genkerr.py` (makes the error message texts), `satpack.py` (the Saturn patch lists), `render/` (font pictures), `disasm/` (record of how the old driver was taken apart), `oneoff/` (record of the one-time edit scripts). See `tools/README.md` | `DIST\K-HANGEUL.DSK` and others (mkdist); files otherwise |
 | `legacy/` | old tools: `nprint.s` (NPRINT, the 79-byte print routine) and the old build tool note (`legacy/README.md`) | a record |
 | `make_all.bat` / `Makefile` | builds everything: the five programs, then runs `mkdist.py` | see "Where the final disk is" |
 | `README.md`, `PYTHON.md` | this file and the Python setup (the package list, `requirements.txt`, is at the top of the repository) | |

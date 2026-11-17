@@ -35,7 +35,7 @@ src/
   samples/                    디스크의 예제 글 (N바이트)
     utf8txt/                  예제 글의 UTF-8 사본
   legacy/                     옛 도구 (NPRINT)
-  tools/                      도구 (mkdist.py, nbyte.py, render/, disasm/, oneoff/)
+  tools/                      도구 (mkdist.py, nbyte.py, genkerr.py, satpack.py, render/, disasm/, oneoff/)
 ```
 
 
@@ -52,7 +52,8 @@ src/
 
 | 바꾸려는 것 | 고칠 곳 |
 |---|---|
-| 드라이버 동작 | `src/driver/driver.s`와 `defs.inc` |
+| 드라이버 동작 | `src/driver/driver.s`와 `defs.inc` (한글 DOS: `kdos_msg.inc`, `kdos_cmd.inc`; 애플소프트 오류 한글 필터: `kerr.inc`(16K 카드), `kerr6.inc`(Saturn 카드)) |
+| 오류 메시지 문구 | `src/tools/genkerr.py`의 표를 고치고 `py -3 src\tools\genkerr.py`를 실행해 `kerr_text.inc`, `kerr6_text.inc`, `kdos_johab.inc`를 다시 만든 뒤 빌드 |
 | 글꼴 모양 | 글꼴 편집기(`src/fonteditor/run_editor.bat`)로 `font.json` |
 | 예제 글 | `src/samples/utf8txt/`를 고친 뒤 `make_all.bat` (`src/samples/README.md`) |
 | 디스크 목록 | `src/tools/mkdist.py` |
@@ -106,7 +107,7 @@ src/
   samples/                    sample text for the disk (N-byte)
     utf8txt/                  UTF-8 copies of the sample text
   legacy/                     old tools (NPRINT)
-  tools/                      tools (mkdist.py, nbyte.py, render/, disasm/, oneoff/)
+  tools/                      tools (mkdist.py, nbyte.py, genkerr.py, satpack.py, render/, disasm/, oneoff/)
 ```
 
 
@@ -123,7 +124,8 @@ src/
 
 | to change | edit |
 |---|---|
-| driver behaviour | `src/driver/driver.s` and `defs.inc` |
+| driver behaviour | `src/driver/driver.s` and `defs.inc` (Korean DOS: `kdos_msg.inc`, `kdos_cmd.inc`; the Korean Applesoft error filter: `kerr.inc` (16K card), `kerr6.inc` (Saturn card)) |
+| the error message texts | the table in `src/tools/genkerr.py`; run `py -3 src\tools\genkerr.py` to remake `kerr_text.inc`, `kerr6_text.inc` and `kdos_johab.inc`, then build |
 | the look of the font | `font.json`, in the font editor (`src/fonteditor/run_editor.bat`) |
 | the sample story | `src/samples/utf8txt/`, then run `make_all.bat` (see `src/samples/README.md`) |
 | what goes on the disk | `src/tools/mkdist.py` |
