@@ -44,26 +44,7 @@ KMSGC:                          ; entered from KSTUB with the card on; X = messa
 .endif
 
 .if !KGUARD
-KMSGK2 = 14                    ; the first message number whose text is in the second table
-KOFF:                           ; start of the Korean text of message 0..15, in KSTR1 or (from KMSGK2 on) KSTR2
-        .byte $00,$04,$16,$16,$26,$39,$46,$69,$82,$95,$AC,$BD,$CD,$DC,$00,$1B
-KSTR1:
-        .byte $8D,$87,$8D,$00   ; 0 CR BELL CR: (CR, bell, CR)
-        .byte $8B,$C4,$CA,$D3,$C4,$CA,$81,$A0,$8B,$C4,$CA,$D1,$D4,$C4,$CD,$C1,$81,$00   ; 1 LANGUAGE NOT AVAILABLE: 언어 없음
-        .byte $8B,$D1,$CA,$C1,$C4,$CE,$CC,$81,$A0,$8B,$C4,$C8,$C6,$C2,$81,$00   ; 2 RANGE ERROR: 범위 오류
-        .byte $8B,$BC,$CD,$D2,$CC,$81,$A0,$8B,$D2,$CD,$C1,$D7,$CC,$C5,$C8,$CC,$C1,$81,$00   ; 4 WRITE PROTECTED: 쓰기 금지됨
-        .byte $8B,$D7,$CB,$C6,$D9,$81,$A0,$8B,$AD,$CD,$D8,$81,$00   ; 5 END OF DATA: 자료 끝
-        .byte $8B,$D6,$CB,$C4,$CC,$C6,$C4,$CD,$C6,$81,$A0,$8B,$C3,$CB,$D7,$C4,$CD,$C6,$81,$A0,$8B,$D4,$CE,$81,$A0,$8B,$C4,$CA,$D1,$D4,$C4,$CD,$C1,$81,$00   ; 6 FILE NOT FOUND: 파일을 찾을 수 없음
-        .byte $8B,$D1,$C8,$C6,$C6,$C2,$C1,$81,$A0,$8B,$D1,$CA,$D3,$C7,$C8,$81,$A0,$8B,$C5,$CB,$C6,$CD,$C1,$81,$00   ; 7 VOLUME MISMATCH: 볼륨 번호 다름
-        .byte $8B,$C4,$CC,$D1,$C3,$CE,$C6,$C6,$D5,$D2,$81,$A0,$8B,$C4,$C8,$C6,$C2,$81,$00   ; 8 I/O ERROR: 입출력 오류
-        .byte $8B,$C5,$CC,$D4,$CD,$DA,$CD,$81,$A0,$8B,$D2,$CB,$C5,$CD,$D2,$81,$A0,$8B,$C3,$CB,$C1,$81,$00   ; 9 DISK FULL: 디스크 가득 참
-        .byte $8B,$D6,$CB,$C4,$CC,$C6,$81,$A0,$8B,$D7,$CB,$C1,$D2,$CC,$C1,$81,$00   ; 10 FILE LOCKED: 파일 잠김
-        .byte $8B,$C1,$CE,$D3,$D1,$CA,$D1,$81,$A0,$8B,$C4,$C8,$C6,$C2,$81,$00   ; 11 SYNTAX ERROR: 문법 오류
-        .byte $8B,$D1,$CA,$D6,$CA,$81,$A0,$8B,$D1,$CE,$D7,$C8,$D2,$81,$00   ; 12 NO BUFFERS AVAILABLE: 버퍼 부족
-        .byte $8B,$D6,$CB,$C4,$CC,$C6,$81,$A0,$8B,$D7,$C8,$C4,$C6,$C2,$81,$A0,$8B,$C5,$CB,$C6,$CD,$C1,$81,$00   ; 13 FILE TYPE MISMATCH: 파일 종류 다름
-KSTR2:
-        .byte $8B,$D6,$CD,$C6,$C8,$D2,$CD,$C6,$CF,$C1,$C4,$CC,$81,$A0,$8B,$D3,$CA,$C1,$CE,$81,$A0,$8B,$DA,$CD,$C1,$81,$00   ; 14 PROGRAM TOO LARGE: 프로그램이 너무 큼
-        .byte $8B,$D7,$CC,$D2,$D7,$CA,$D1,$81,$A0,$8B,$C1,$D5,$C4,$C6,$D5,$C4,$81,$A0,$8B,$C4,$CB,$D3,$CC,$C1,$81,$00   ; 15 NOT DIRECT COMMAND: 직접 명령 아님
+.include "kdos6_text.inc"
 .else
 .include "kdos_johab.inc"
 .endif

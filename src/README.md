@@ -5,7 +5,7 @@
 
 | 폴더 / 파일 | 무엇인가 | 결과물 |
 |---|---|---|
-| `driver/` | K-HANGEUL 한글 드라이버. `driver.s`(본체), `defs.inc`(이름 정의), `kdos_msg.inc`/`kdos_cmd.inc`(한글 DOS), `kerr.inc`/`kerr6.inc`(애플소프트 오류 한글 필터; 문구는 `genkerr.py`가 만든 `kerr_text.inc`, `kerr6_text.inc`, `kdos_johab.inc`), `driver.cfg`/`driver_sat.cfg`(링크 설정), `build.bat` / `Makefile`(빌드), `fontgen.py`(`font.json`을 글꼴 파일로 바꿈), `hello.bas`(디스크 부팅 프로그램 `HELLO`), `demo.bas`(예제 `DEMO`), `../docs/MEMORY_LAYOUT.md`(메모리 배치), `../docs/DOS_PATCHES.md`(DOS에 하는 패치) | `build/K-HANGEUL.bin`, `build/FONT12.bin`, `build/FONT6X10.bin` |
+| `driver/` | K-HANGEUL 한글 드라이버. `driver.s`(본체), `defs.inc`(이름 정의), `kdos_msg.inc`/`kdos_cmd.inc`(한글 DOS), `kerr.inc`/`kerr6.inc`(애플소프트 오류 한글 필터; 문구는 `genkerr.py`가 만든 `kerr_text.inc`, `kerr6_text.inc`, `kdos_johab.inc`, `kdos6_text.inc`), `driver.cfg`/`driver_sat.cfg`(링크 설정), `build.bat` / `Makefile`(빌드), `fontgen.py`(`font.json`을 글꼴 파일로 바꿈), `hello.bas`(디스크 부팅 프로그램 `HELLO`), `demo.bas`(예제 `DEMO`), `../docs/MEMORY_LAYOUT.md`(메모리 배치), `../docs/DOS_PATCHES.md`(DOS에 하는 패치) | `build/K-HANGEUL.bin`, `build/FONT12.bin`, `build/FONT6X10.bin` |
 | `type/` | `&TYPE` 명령. `type.s`, `core.inc`(파일 읽기 코드, `typec`과 `stype`도 씀), `../docs/TYPE.md`, 예제 `typedemo.bas`, `storyt.bas`, `sampleb.bin` | `build/TYPE.bin` |
 | `typec/` | `TYPEC`. `&` 명령 없이 `]` 프롬프트에서 파일을 찍는 프로그램 | `build/TYPEC.bin` |
 | `stype/` | `&STYPE` 명령(픽셀 줄이 펼쳐지는 효과). `stype.s`, `score.inc`(줄 그리기 루틴, `stypec`도 씀), `../docs/STYPE.md`, 예제 `stypedemo.bas`, `storys.bas` | `build/STYPE.bin` |
@@ -53,7 +53,7 @@ make_all.bat clean      빌드 폴더와 DIST를 지움 (저장소 맨 위의 cl
 
 | folder / file | what it is | output |
 |---|---|---|
-| `driver/` | the K-HANGEUL Hangul driver: `driver.s` (the driver), `defs.inc` (names), `kdos_msg.inc` / `kdos_cmd.inc` (Korean DOS), `kerr.inc` / `kerr6.inc` (the Korean Applesoft error filter; its texts are `kerr_text.inc`, `kerr6_text.inc` and `kdos_johab.inc`, made by `genkerr.py`), `driver.cfg` / `driver_sat.cfg` (link layout), `build.bat` / `Makefile` (build), `fontgen.py` (turns `font.json` into the font files), `hello.bas` (the boot program `HELLO`), `demo.bas` (the example `DEMO`), `../docs/MEMORY_LAYOUT.md` (memory map), `../docs/DOS_PATCHES.md` (what is patched in DOS) | `build/K-HANGEUL.bin`, `build/FONT12.bin`, `build/FONT6X10.bin` |
+| `driver/` | the K-HANGEUL Hangul driver: `driver.s` (the driver), `defs.inc` (names), `kdos_msg.inc` / `kdos_cmd.inc` (Korean DOS), `kerr.inc` / `kerr6.inc` (the Korean Applesoft error filter; its texts are `kerr_text.inc`, `kerr6_text.inc` and `kdos_johab.inc`, `kdos6_text.inc`, made by `genkerr.py`), `driver.cfg` / `driver_sat.cfg` (link layout), `build.bat` / `Makefile` (build), `fontgen.py` (turns `font.json` into the font files), `hello.bas` (the boot program `HELLO`), `demo.bas` (the example `DEMO`), `../docs/MEMORY_LAYOUT.md` (memory map), `../docs/DOS_PATCHES.md` (what is patched in DOS) | `build/K-HANGEUL.bin`, `build/FONT12.bin`, `build/FONT6X10.bin` |
 | `type/` | the `&TYPE` command: `type.s`, `core.inc` (the file reader, also used by `typec` and `stype`), `../docs/TYPE.md`, examples `typedemo.bas`, `storyt.bas`, `sampleb.bin` | `build/TYPE.bin` |
 | `typec/` | `TYPEC`: prints a file at the `]` prompt, without the `&` command | `build/TYPEC.bin` |
 | `stype/` | the `&STYPE` command (rows unroll pixel by pixel): `stype.s`, `score.inc` (the row-drawing routines, also used by `stypec`), `../docs/STYPE.md`, examples `stypedemo.bas`, `storys.bas` | `build/STYPE.bin` |

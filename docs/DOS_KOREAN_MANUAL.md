@@ -28,17 +28,18 @@ Saturn 카드에서 디스크를 포맷하려면 16KB 카드에서 하거나 K-H
 
 | DOS | 한글 | DOS | 한글 |
 |---|---|---|---|
-| `LANGUAGE NOT AVAILABLE` | 언어 없음 | `FILE LOCKED` | 파일 잠김 |
+| `LANGUAGE NOT AVAILABLE` | 언어없음 | `FILE LOCKED` | 파일잠김 |
 | `RANGE ERROR` | 범위 오류 | `SYNTAX ERROR` | 문법 오류 |
-| `WRITE PROTECTED` | 쓰기 금지됨 | `NO BUFFERS AVAILABLE` | 버퍼 부족 |
-| `END OF DATA` | 자료 끝 | `FILE TYPE MISMATCH` | 파일 종류 다름 |
-| `FILE NOT FOUND` | 파일을 찾을 수 없음 | `PROGRAM TOO LARGE` | 프로그램이 너무 큼 |
-| `VOLUME MISMATCH` | 볼륨 번호 다름 | `NOT DIRECT COMMAND` | 직접 명령 아님 |
-| `I/O ERROR` | 입출력 오류 | `DISK VOLUME` (CATALOG 머리글) | 볼륨 |
-| `DISK FULL` | 디스크 가득 참 | | |
+| `WRITE PROTECTED` | 쓰기금지 | `NO BUFFERS AVAILABLE` | 버퍼부족 |
+| `END OF DATA` | 자료끝 | `FILE TYPE MISMATCH` | 형식다름 |
+| `FILE NOT FOUND` | 파일없음 | `PROGRAM TOO LARGE` | 용량초과 |
+| `VOLUME MISMATCH` | 볼륨다름 | `NOT DIRECT COMMAND` | 직접 불가 |
+| `I/O ERROR` | 입출력 오류 | `DISK VOLUME` (CATALOG) | 볼륨 |
+| `DISK FULL` | 공간부족 | | |
 
 - `ONERR GOTO`가 받는 오류 번호는 그대로입니다. 오류 메시지의 글을 읽는 프로그램은 한글을 받습니다.
-- 위 표는 DOS의 메시지입니다. 애플소프트의 메시지(`?SYNTAX ERROR` 등)는 애플 II 롬에 있지만 1.4(16K 카드), 1.5(Saturn 카드)부터 드라이버가 한글로 바꿔 찍습니다(`MANUAL.md` 8a절).
+- 위 표는 DOS의 메시지입니다. 애플소프트의 메시지(`?SYNTAX ERROR` 등)는 애플 II 롬에 있지만 1.4(16K 카드), 1.5(Saturn 카드)부터 드라이버가 한글로 바꿔 찍습니다. 1.6부터 `BREAK`, `?EXTRA IGNORED`, `?REENTER`도 합니다(`MANUAL.md` 8a절, 아직 한글이 아닌 것은 8b절).
+- 1.6에서 문구를 줄이고 띄어쓰기를 없앴습니다(`파일을 찾을 수 없음` → `파일없음` 등). 파일이 `$6000` 앞에서 끝나야 해서 자리를 마련하려고 했습니다.
 
 ## 4. 한글 명령 이름
 

@@ -120,7 +120,7 @@ C:\bin\acx.exe -l disk\K-HANGEUL.DSK
 
 **드라이버 고치기.** `src\driver\driver.s`와 `defs.inc`(또는 `kerr.inc`, `kerr6.inc`, `kdos_msg.inc`, `kdos_cmd.inc`)를 고치고 `build.bat`을 실행합니다. 바이너리를 직접 고치지 마세요. 소스는 어셈블리입니다.
 
-**오류 메시지 문구 고치기.** 애플소프트 오류와 DOS 메시지의 한글 문구는 `src	ools\genkerr.py` 위쪽의 표에 있습니다. `py -3 src	ools\genkerr.py`를 실행하면 `kerr_text.inc`, `kerr6_text.inc`, `kdos_johab.inc`를 다시 만들고(저장소에 들어 있고 `build.bat`은 이 도구를 실행하지 않습니다), 그다음 `build.bat`을 실행합니다. 16K 카드의 필터 자리는 `$191`바이트(`$1CC0-$1E50`, assert가 확인)이고 파일은 `$6000` 앞에서 끝나야 합니다(`driver.cfg`의 `MAIN`이 확인합니다. 1.5에서 22바이트 남음).
+**오류 메시지 문구 고치기.** 애플소프트 오류와 DOS 메시지의 한글 문구는 `src\tools\genkerr.py` 위쪽의 표에 있습니다. `py -3 src\tools\genkerr.py`를 실행하면 `kerr_text.inc`, `kerr6_text.inc`, `kdos_johab.inc`를 다시 만들고(저장소에 들어 있고 `build.bat`은 이 도구를 실행하지 않습니다), 그다음 `build.bat`을 실행합니다. 16K 카드의 필터 자리는 `$191`바이트(`$1CC0-$1E50`, assert가 확인)이고 파일은 `$6000` 앞에서 끝나야 합니다(`driver.cfg`의 `MAIN`이 확인합니다. 1.6에서 7바이트 남음). Saturn 카드의 DOS 문구(`kdos6_text.inc`, 자판 글자)도 이 도구가 만듭니다.
 
 **예제 글 고치기.** `src\samples\utf8txt\`의 UTF-8 파일을 고치고 `build.bat`을 실행합니다(`src\samples\README.md`).
 

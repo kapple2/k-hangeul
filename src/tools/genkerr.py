@@ -46,30 +46,33 @@ ROM = [
     (0x00, "NEXT WITHOUT FOR", "FOR 없음"),
     (0x10, "SYNTAX", "문법"),
     (0x16, "RETURN WITHOUT GOSUB", "GOSUB 없음"),
-    (0x2A, "OUT OF DATA", "자료 끝"),
+    (0x2A, "OUT OF DATA", "자료끝"),
     (0x35, "ILLEGAL QUANTITY", "범위"),
     (0x45, "OVERFLOW", "넘침"),
-    (0x4D, "OUT OF MEMORY", "메모리 부족"),
-    (0x5A, "UNDEF'D STATEMENT", "줄 없음"),
+    (0x4D, "OUT OF MEMORY", "메모리부족"),
+    (0x5A, "UNDEF'D STATEMENT", "줄없음"),
     (0x6B, "BAD SUBSCRIPT", "첨자"),
-    (0x78, "REDIM'D ARRAY", "배열 중복"),
+    (0x78, "REDIM'D ARRAY", "배열중복"),
     (0x85, "DIVISION BY ZERO", "0으로 나눔"),
-    (0x95, "ILLEGAL DIRECT", "직접 불가"),
-    (0xA3, "TYPE MISMATCH", "형 다름"),
+    (0x95, "ILLEGAL DIRECT", "직접불가"),
+    (0xA3, "TYPE MISMATCH", "형식다름"),
     (0xB0, "STRING TOO LONG", "문자열 김"),
     (0xBF, "FORMULA TOO COMPLEX", "식 복잡"),
-    (0xD2, "CAN'T CONTINUE", "계속 불가"),
+    (0xD2, "CAN'T CONTINUE", "계속불가"),
     (0xE0, "UNDEF'D FUNCTION", "없는 함수"),
 ]
 ERR = " 오류"    # replaces " ERROR" and the bell that follows it
 IN = " 줄 "         # replaces " IN " (the line number follows)
+BRK = "중단"        # replaces "BREAK" (the CR before it and the bell after it are the ROM's)
+EXTRA = "입력 무시"   # replaces "EXTRA IGNORED" of ?EXTRA IGNORED (INPUT; the ? is the ROM's)
+REENTER = "다시 입력"       # replaces "REENTER" of ?REENTER (INPUT; the ? is the ROM's)
 
 
 # the Korean DOS error messages (message number -> text); 3 shares the text of 2. 0 is CR, bell, CR.
 DOS = {
-    1: "언어 없음", 2: "범위 오류", 4: "쓰기 금지됨", 5: "자료 끝", 6: "파일을 찾을 수 없음", 7: "볼륨 번호 다름",
-    8: "입출력 오류", 9: "디스크 가득 참", 10: "파일 잠김", 11: "문법 오류", 12: "버퍼 부족", 13: "파일 종류 다름",
-    14: "프로그램이 너무 큼", 15: "직접 명령 아님",
+    1: "언어없음", 2: "범위 오류", 4: "쓰기금지", 5: "자료끝", 6: "파일없음", 7: "볼륨다름",
+    8: "입출력 오류", 9: "공간부족", 10: "파일잠김", 11: "문법 오류", 12: "버퍼부족", 13: "형식다름",
+    14: "용량초과", 15: "직접불가",
 }
 DOS_EN = {1: "LANGUAGE NOT AVAILABLE", 2: "RANGE ERROR", 4: "WRITE PROTECTED", 5: "END OF DATA", 6: "FILE NOT FOUND",
           7: "VOLUME MISMATCH", 8: "I/O ERROR", 9: "DISK FULL", 10: "FILE LOCKED", 11: "SYNTAX ERROR",
@@ -110,12 +113,48 @@ def hexs(b: bytes) -> str:
     return ",".join("$%02X" % x for x in b)
 
 
+def dos6_lines() -> list[str]:
+    """the DOS messages for the Saturn card (kdos_msg.inc, KGUARD = 0): Hangul-mode keystrokes in two tables KSTR1 / KSTR2
+    (an offset is one byte), the second from message KMSGK2 on"""
+    strings = {0: bytes([0x8D, 0x87, 0x8D])}
+    for k, v in DOS.items():
+        strings[k] = bytes(nbyte.encode(v))
+    strings[3] = strings[2]
+    tabs = [[], []]
+    off = 0
+    offs = []
+    done = {}
+    split = 16
+    for k in range(16):
+        s = strings[k]
+        if s in done and done[s][0] == (0 if split == 16 else 1):
+            offs.append(done[s][1])
+            continue
+        if split == 16 and off + len(s) + 1 > 255:
+            split, off = k, 0
+        t = 0 if split == 16 else 1
+        done[s] = (t, off)
+        offs.append(off)
+        txt = "CR BELL CR" if k == 0 else DOS[k]
+        tabs[t].append("        .byte %s    ; %d %s: %s" % (hexs(s + bytes([0])), k, DOS_EN.get(k, ""), txt))
+        off += len(s) + 1
+    lines = ["; made by src/tools/genkerr.py: do not edit. Korean DOS error messages as keystrokes (Saturn card, bank 6)."]
+    lines.append("KMSGK2 = %d                    ; the first message number whose text is in the second table" % split)
+    lines.append("KOFF:                           ; start of the Korean text of message 0..15, in KSTR1 or (from KMSGK2 on) KSTR2")
+    lines.append("        .byte " + ",".join("$%02X" % o for o in offs))
+    lines.append("KSTR1:")
+    lines += tabs[0]
+    lines.append("KSTR2:")
+    lines += tabs[1]
+    return lines
+
+
 def k6_lines() -> list[str]:
     """the same texts as Hangul-mode keystrokes for the Saturn card (bank 6 prints through COUT): keys, then the texts in the
     same order, found by counting $00 ends (kerr6.inc)"""
     lines = ["; made by src/tools/genkerr.py: do not edit. Korean Applesoft error messages as keystroke text (Saturn card, bank 6)."]
-    keys = [off for off, en, ko in ROM] + [0xF1, 0xF2]
-    texts = [ko for off, en, ko in ROM] + [IN, ERR]
+    keys = [off for off, en, ko in ROM] + [0xF1, 0xF2, 0xF3, 0xF4, 0xF5]
+    texts = [ko for off, en, ko in ROM] + [IN, ERR, BRK, EXTRA, REENTER]
     lines.append("KEK:    .byte " + ",".join("$%02X" % k for k in keys))
     lines.append("KEKN = %d" % len(keys))
     lines.append("KET:")
@@ -129,9 +168,9 @@ def main() -> None:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     lines = ["; made by src/tools/genkerr.py: do not edit (change the texts there). Korean Applesoft error messages, johab pairs, $00 ended."]
     total = 0
-    keys = [off for off, en, ko in ROM] + [0xF1, 0xF2]
-    texts = [ko for off, en, ko in ROM] + [IN, ERR]
-    lines.append("KEK:    .byte " + ",".join("$%02X" % k for k in keys) + "    ; the key of each text: the ROM offset of the first character of a message; $F1 the I of ' IN '; $F2 the space of ' ERROR'")
+    keys = [off for off, en, ko in ROM] + [0xF1, 0xF2, 0xF3, 0xF4, 0xF5]
+    texts = [ko for off, en, ko in ROM] + [IN, ERR, BRK, EXTRA, REENTER]
+    lines.append("KEK:    .byte " + ",".join("$%02X" % k for k in keys) + "    ; the key of each text: the ROM offset of the first character of a message; $F1 the I of ' IN '; $F2 the space of ' ERROR'; $F3 the B of BREAK; $F4/$F5 the X of ?EXTRA IGNORED / the N of ?REENTER")
     lines.append("KEKN = %d" % len(keys))
     lines.append("KET:                        ; the texts in the order of the keys, each ended by $00")
     for k, t in zip(keys, texts):
@@ -147,6 +186,7 @@ def main() -> None:
     out = Path(args[0]) if args else d / "kerr_text.inc"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     (d / "kerr6_text.inc").write_text("\n".join(k6_lines()) + "\n", encoding="utf-8")
+    (d / "kdos6_text.inc").write_text("\n".join(dos6_lines()) + "\n", encoding="utf-8")
     dl = dos_lines()
     (d / "kdos_johab.inc").write_text("\n".join(dl) + "\n", encoding="utf-8")
     print("wrote", out, "text", total, "bytes; kdos_johab.inc", dl[-1])

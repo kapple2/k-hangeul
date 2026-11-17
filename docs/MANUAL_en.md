@@ -1,4 +1,4 @@
-# K-HANGEUL (캐플한글) v1.5 user manual
+# K-HANGEUL (캐플한글) v1.6 user manual
 
 > 한국어: [MANUAL.md](MANUAL.md)
 
@@ -249,14 +249,14 @@ While K-HANGEUL is loaded, DOS 3.3 talks Korean, with a 16K language card and wi
 
 | DOS | Korean | DOS | Korean |
 |---|---|---|---|
-| `LANGUAGE NOT AVAILABLE` | 언어 없음 | `FILE LOCKED` | 파일 잠김 |
+| `LANGUAGE NOT AVAILABLE` | 언어없음 | `FILE LOCKED` | 파일잠김 |
 | `RANGE ERROR` | 범위 오류 | `SYNTAX ERROR` | 문법 오류 |
-| `WRITE PROTECTED` | 쓰기 금지됨 | `NO BUFFERS AVAILABLE` | 버퍼 부족 |
-| `END OF DATA` | 자료 끝 | `FILE TYPE MISMATCH` | 파일 종류 다름 |
-| `FILE NOT FOUND` | 파일을 찾을 수 없음 | `PROGRAM TOO LARGE` | 프로그램이 너무 큼 |
-| `VOLUME MISMATCH` | 볼륨 번호 다름 | `NOT DIRECT COMMAND` | 직접 명령 아님 |
+| `WRITE PROTECTED` | 쓰기금지 | `NO BUFFERS AVAILABLE` | 버퍼부족 |
+| `END OF DATA` | 자료끝 | `FILE TYPE MISMATCH` | 형식다름 |
+| `FILE NOT FOUND` | 파일없음 | `PROGRAM TOO LARGE` | 용량초과 |
+| `VOLUME MISMATCH` | 볼륨다름 | `NOT DIRECT COMMAND` | 직접 불가 |
 | `I/O ERROR` | 입출력 오류 | `DISK VOLUME` (CATALOG) | 볼륨 |
-| `DISK FULL` | 디스크 가득 참 | | |
+| `DISK FULL` | 공간부족 | | |
 
 The error numbers for `ONERR GOTO` are unchanged.
 
@@ -296,25 +296,52 @@ How to type them:
 - With KBASIC loaded, `실행` and `읽기` are also KBASIC words; KBASIC turns them into `RUN` and `READ` itself, which gives the same result. KBASIC also changes its own words inside Hangul file names, so avoid KBASIC words in file names.
 
 
-## 8a. Korean Applesoft error messages
+## 8a. Korean Applesoft messages
 
-The errors that Applesoft BASIC itself prints are in Korean too (version 1.4 for the 16K card, 1.5 for the Saturn card): `?UNDEF'D STATEMENT ERROR IN 10` shows as `?줄 없음 오류 줄 10`. ` ERROR` becomes ` 오류` and ` IN ` becomes ` 줄 `; the line number and the beep are the ROM's. Only the text changes: the error numbers (`PEEK(222)`, `ONERR GOTO`) are the same.
+The messages that Applesoft BASIC itself prints are in Korean too (version 1.4 for the 16K card, 1.5 for the Saturn card, `BREAK` and the `INPUT` messages since 1.6): `?UNDEF'D STATEMENT ERROR IN 10` shows as `?줄없음 오류 줄 10`. ` ERROR` becomes ` 오류` and ` IN ` becomes ` 줄 `; the line number and the beep are the ROM's. Only the text changes: the error numbers (`PEEK(222)`, `ONERR GOTO`) are the same.
 
 | Applesoft | Korean | Applesoft | Korean |
 |---|---|---|---|
 | `NEXT WITHOUT FOR` | FOR 없음 | `BAD SUBSCRIPT` | 첨자 |
-| `SYNTAX` | 문법 | `REDIM'D ARRAY` | 배열 중복 |
+| `SYNTAX` | 문법 | `REDIM'D ARRAY` | 배열중복 |
 | `RETURN WITHOUT GOSUB` | GOSUB 없음 | `DIVISION BY ZERO` | 0으로 나눔 |
-| `OUT OF DATA` | 자료 끝 | `ILLEGAL DIRECT` | 직접 불가 |
-| `ILLEGAL QUANTITY` | 범위 | `TYPE MISMATCH` | 형 다름 |
+| `OUT OF DATA` | 자료끝 | `ILLEGAL DIRECT` | 직접불가 |
+| `ILLEGAL QUANTITY` | 범위 | `TYPE MISMATCH` | 형식다름 |
 | `OVERFLOW` | 넘침 | `STRING TOO LONG` | 문자열 김 |
-| `OUT OF MEMORY` | 메모리 부족 | `FORMULA TOO COMPLEX` | 식 복잡 |
-| `UNDEF'D STATEMENT` | 줄 없음 | `CAN'T CONTINUE` | 계속 불가 |
-| `UNDEF'D FUNCTION` | 함수 없음 | | |
+| `OUT OF MEMORY` | 메모리부족 | `FORMULA TOO COMPLEX` | 식 복잡 |
+| `UNDEF'D STATEMENT` | 줄없음 | `CAN'T CONTINUE` | 계속불가 |
+| `UNDEF'D FUNCTION` | 없는 함수 | | |
 
-- Each line is "`?` + text + ` 오류`", for example `?0으로 나눔 오류`. `BREAK IN 100` (Ctrl-C) and the messages of `INPUT` (`?REENTER`, `?EXTRA IGNORED`) stay English.
+Three messages that are not errors:
+
+| Applesoft | Korean | When |
+|---|---|---|
+| `BREAK IN 100` | 중단 줄 100 | Ctrl-C, `STOP` |
+| `?EXTRA IGNORED` | ?입력 무시 | you typed text with a comma or colon into `INPUT A` (only the first part is taken) |
+| `?REENTER` | ?다시 입력 | you typed non-numeric text into `INPUT A` |
+
+- An error line is "`?` + text + ` 오류`", for example `?0으로 나눔 오류`.
+- That `INPUT` into a string variable (`INPUT A$`) stops at a comma or colon is Applesoft's own behaviour. To get a whole line, call the ROM's line reader instead of `INPUT`: `POKE 51,191 : CALL -662`, then read from `$200` (`PEEK(512+I)`) up to `$8D` (141). Commas and colons are kept (this is known ROM behaviour; it has not been tried with this driver yet).
 - It works only while DOS's output hook is in the chain (the normal case). After `PR#0`, or with a program that points `CSW` at the driver directly, the text stays English.
-- It works with the KBASIC add-on, and on the II Plus, IIe and IIc (checked in MAME).
+- It works with the KBASIC add-on, and was tested on the II Plus and the Saturn card. See section 8b for the IIe and IIc.
+
+## 8b. What is not in Korean, and what was not checked
+
+**Not in Korean**
+
+- Every message that I found in the Applesoft ROM (the 17 errors, ` ERROR`, ` IN `, `BREAK`, `?EXTRA IGNORED`, `?REENTER`) is Korean. Everything else stays English:
+  - Text of the Monitor ROM (for example `ERR` after a cassette error, the Monitor prompt). Only strings of 5 or more characters were looked for in the ROM; the Monitor text was not examined separately.
+  - The error text of Integer BASIC (the original Apple II): a different ROM.
+  - ProDOS messages: not looked at. The Korean DOS is for DOS 3.3 only.
+  - Applesoft messages when DOS's output hook is not in the chain (above).
+  - Text that other programs print themselves.
+- On a Saturn card that is not 128K (the driver is not in bank 7) the DOS and Applesoft messages are English.
+
+**Not checked**
+
+- **Apple IIe and IIc:** the error messages were checked on the enhanced IIe and the IIc (MAME) for 1.4 and 1.5. For 1.6, `?REENTER` was checked there, but `BREAK` and `?EXTRA IGNORED` were not, because the test tool could not type lower case and commas correctly. The ROM text is the same as on the II Plus.
+- The Saturn card when the driver is not in bank 7 (`K6FN` becomes an `rts`).
+- Real machines: every test was in MAME.
 
 ## 9. Using it on your own DOS 3.3 disk
 

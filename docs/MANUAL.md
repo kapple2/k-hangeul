@@ -1,4 +1,4 @@
-# K-HANGEUL (캐플한글) v1.5 사용 설명서
+# K-HANGEUL (캐플한글) v1.6 사용 설명서
 
 > English version: [MANUAL_en.md](MANUAL_en.md)
 
@@ -275,14 +275,14 @@ K-HANGEUL을 올린 동안 DOS 3.3이 한글로 말합니다. 16K 랭귀지 카�
 
 | DOS | 한글 | DOS | 한글 |
 |---|---|---|---|
-| `LANGUAGE NOT AVAILABLE` | 언어 없음 | `FILE LOCKED` | 파일 잠김 |
+| `LANGUAGE NOT AVAILABLE` | 언어없음 | `FILE LOCKED` | 파일잠김 |
 | `RANGE ERROR` | 범위 오류 | `SYNTAX ERROR` | 문법 오류 |
-| `WRITE PROTECTED` | 쓰기 금지됨 | `NO BUFFERS AVAILABLE` | 버퍼 부족 |
-| `END OF DATA` | 자료 끝 | `FILE TYPE MISMATCH` | 파일 종류 다름 |
-| `FILE NOT FOUND` | 파일을 찾을 수 없음 | `PROGRAM TOO LARGE` | 프로그램이 너무 큼 |
-| `VOLUME MISMATCH` | 볼륨 번호 다름 | `NOT DIRECT COMMAND` | 직접 명령 아님 |
+| `WRITE PROTECTED` | 쓰기금지 | `NO BUFFERS AVAILABLE` | 버퍼부족 |
+| `END OF DATA` | 자료끝 | `FILE TYPE MISMATCH` | 형식다름 |
+| `FILE NOT FOUND` | 파일없음 | `PROGRAM TOO LARGE` | 용량초과 |
+| `VOLUME MISMATCH` | 볼륨다름 | `NOT DIRECT COMMAND` | 직접 불가 |
 | `I/O ERROR` | 입출력 오류 | `DISK VOLUME` (CATALOG) | 볼륨 |
-| `DISK FULL` | 디스크 가득 참 | | |
+| `DISK FULL` | 공간부족 | | |
 
 `ONERR GOTO`가 받는 오류 번호는 그대로입니다.
 
@@ -324,23 +324,50 @@ K-HANGEUL을 올린 동안 DOS 3.3이 한글로 말합니다. 16K 랭귀지 카�
 
 ## 8a. 애플소프트 오류 메시지
 
-애플소프트 BASIC이 직접 내는 오류도 한글로 나옵니다(16K 카드는 1.4부터, Saturn 카드는 1.5부터): `?UNDEF'D STATEMENT ERROR IN 10`이 `?줄 없음 오류 줄 10`으로 나옵니다. ` ERROR`는 ` 오류`, ` IN `은 ` 줄 `이 되고, 줄 번호와 벨 소리는 ROM이 냅니다. 글자만 바뀝니다: 오류 번호(`PEEK(222)`, `ONERR GOTO`)는 같습니다.
+애플소프트 BASIC이 직접 내는 메시지도 한글로 나옵니다(16K 카드는 1.4부터, Saturn 카드는 1.5부터, `BREAK`와 `INPUT` 메시지는 1.6부터): `?UNDEF'D STATEMENT ERROR IN 10`이 `?줄없음 오류 줄 10`으로 나옵니다. ` ERROR`는 ` 오류`, ` IN `은 ` 줄 `이 되고, 줄 번호와 벨 소리는 ROM이 냅니다. 글자만 바뀝니다: 오류 번호(`PEEK(222)`, `ONERR GOTO`)는 같습니다.
 
 | 애플소프트 | 한글 | 애플소프트 | 한글 |
 |---|---|---|---|
 | `NEXT WITHOUT FOR` | FOR 없음 | `BAD SUBSCRIPT` | 첨자 |
-| `SYNTAX` | 문법 | `REDIM'D ARRAY` | 배열 중복 |
+| `SYNTAX` | 문법 | `REDIM'D ARRAY` | 배열중복 |
 | `RETURN WITHOUT GOSUB` | GOSUB 없음 | `DIVISION BY ZERO` | 0으로 나눔 |
-| `OUT OF DATA` | 자료 끝 | `ILLEGAL DIRECT` | 직접 불가 |
-| `ILLEGAL QUANTITY` | 범위 | `TYPE MISMATCH` | 형 다름 |
+| `OUT OF DATA` | 자료끝 | `ILLEGAL DIRECT` | 직접불가 |
+| `ILLEGAL QUANTITY` | 범위 | `TYPE MISMATCH` | 형식다름 |
 | `OVERFLOW` | 넘침 | `STRING TOO LONG` | 문자열 김 |
-| `OUT OF MEMORY` | 메모리 부족 | `FORMULA TOO COMPLEX` | 식 복잡 |
-| `UNDEF'D STATEMENT` | 줄 없음 | `CAN'T CONTINUE` | 계속 불가 |
-| `UNDEF'D FUNCTION` | 함수 없음 | | |
+| `OUT OF MEMORY` | 메모리부족 | `FORMULA TOO COMPLEX` | 식 복잡 |
+| `UNDEF'D STATEMENT` | 줄없음 | `CAN'T CONTINUE` | 계속불가 |
+| `UNDEF'D FUNCTION` | 없는 함수 | | |
 
-- 각 줄은 "`?` + 문구 + ` 오류`"입니다. 예: `?0으로 나눔 오류`. `BREAK IN 100`(Ctrl-C)과 `INPUT`의 메시지(`?REENTER`, `?EXTRA IGNORED`)는 영어로 남습니다.
+오류가 아닌 메시지 셋:
+
+| 애플소프트 | 한글 | 언제 |
+|---|---|---|
+| `BREAK IN 100` | 중단 줄 100 | Ctrl-C, `STOP` |
+| `?EXTRA IGNORED` | ?입력 무시 | `INPUT A`에 쉼표나 콜론이 든 글을 쳤을 때(앞부분만 받음) |
+| `?REENTER` | ?다시 입력 | `INPUT A`에 숫자가 아닌 글을 쳤을 때 |
+
+- 오류 줄은 "`?` + 문구 + ` 오류`"입니다. 예: `?0으로 나눔 오류`.
+- `INPUT`이 문자열 변수(`INPUT A$`)로 받을 때 쉼표나 콜론에서 멈추는 것은 애플소프트의 원래 동작입니다. 한 줄 전체가 필요하면 `INPUT` 대신 ROM의 줄 읽기를 부릅니다: `POKE 51,191 : CALL -662` 다음 `$200`부터(`PEEK(512+I)`) `$8D`(141)가 나올 때까지 읽습니다. 쉼표와 콜론이 그대로 들어 있습니다(ROM 동작으로 알려진 것이고 이 드라이버로는 아직 시험하지 않았습니다).
 - DOS의 출력 고리가 이어져 있을 때(보통 그렇습니다)만 됩니다. `PR#0` 뒤나 `CSW`를 드라이버로 바로 돌리는 프로그램에서는 영어로 남습니다.
-- KBASIC 애드온과 함께 되고, II Plus, IIe, IIc에서 됩니다(MAME로 확인).
+- KBASIC 애드온과 함께 되고, II Plus와 Saturn 카드에서 시험했습니다. IIe와 IIc는 아래 8b절을 보세요.
+
+## 8b. 아직 한글이 아닌 것, 확인하지 못한 것
+
+**한글이 아닌 것**
+
+- 애플소프트 ROM에서 찾은 문구(오류 17가지, ` ERROR`, ` IN `, `BREAK`, `?EXTRA IGNORED`, `?REENTER`)는 모두 한글입니다. 그 밖의 것은 영어입니다:
+  - 모니터 ROM의 글(예: 카세트 오류의 `ERR`, 모니터 프롬프트). ROM에서 5글자 이상의 글만 찾아 보았고 모니터 글은 따로 살펴보지 않았습니다.
+  - 정수 BASIC(원래 애플 II)의 오류 글: ROM이 다릅니다.
+  - ProDOS의 메시지: 살펴보지 않았습니다. 한글 DOS는 DOS 3.3 전용입니다.
+  - DOS의 출력 고리 없이 쓸 때의 애플소프트 메시지(위).
+  - 다른 프로그램이 스스로 찍는 글.
+- 128K가 아닌 Saturn 카드에서는(드라이버가 뱅크 7이 아님) DOS와 애플소프트 메시지가 영어입니다.
+
+**확인하지 못한 것**
+
+- **애플 IIe, IIc:** 1.4와 1.5 때 확장 IIe와 IIc(MAME)에서 오류 메시지를 확인했습니다. 1.6의 `?REENTER`는 거기서 확인했지만, `BREAK`와 `?EXTRA IGNORED`는 시험 도구가 소문자와 쉼표를 제대로 못 쳐서 확인하지 못했습니다. ROM 글은 II Plus와 같습니다.
+- Saturn 카드에서 드라이버가 뱅크 7이 아닐 때(`K6FN`이 `rts`가 되는 경우).
+- 진짜 기계: 모든 시험은 MAME입니다.
 
 ## 9. 자기 DOS 3.3 디스크에서 쓰기
 
