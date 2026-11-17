@@ -1,4 +1,4 @@
-# K-HANGEUL (캐플한글) v1.7 user manual
+# K-HANGEUL (캐플한글) v1.8 user manual
 
 > 한국어: [MANUAL.md](MANUAL.md)
 

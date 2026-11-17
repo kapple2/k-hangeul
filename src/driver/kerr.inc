@@ -42,11 +42,13 @@ KEFILT:
         lda  KEX                    ; the key is the table offset of this character (the carry is set: cmp equal)
         bcs  @look
 @pass:  clc                         ; (here, so that every branch to it reaches)
-@x:     ldx  KEX
-        ldy  KEY
-        lda  KEA
-        rts
-@w2:    ldy  #3                     ; STROUT's caller (the words at $010C/D) against the four in TH/TL: ED $1F is " IN " (from
+        bcc  @x
+@w2:    cmp  #$DB                   ; (A = $010B) the caller of OUTDO must be STROUT's loop ($4B $DB): SPC and TAB (OUTSP, called
+        bne  @pass                  ; from $DB35 = $37 $DB) and other output come through here too, and a statement's
+        lda  $010A,x                ; return address $D822 is under them: they must not be taken for ?EXTRA IGNORED
+        cmp  #$4B
+        bne  @pass
+        ldy  #3                     ; STROUT's caller (the words at $010C/D) against the four in TH/TL: ED $1F is " IN " (from
 @l:     lda  $010D,x                ; $ED19), D4 $33 is " ERROR" and BREAK (from $D431), D8 $22 is ?EXTRA IGNORED (the INPUT
         cmp  TH,y                   ; handler's caller, NEWSTT), DB $96 is ?REENTER (from $DB94)
         bne  @n
@@ -94,23 +96,23 @@ KEFILT:
         sta  KPL+1
         jsr  KPUTS
 @sw:    sec
-        jmp  @x
+@x:     ldx  KEX
+        ldy  KEY
+        lda  KEA
+        rts
 TH:     .byte $ED,$D4,$D8,$DB       ; the callers of STROUT: high bytes,
 TL:     .byte $1F,$33,$22,$96       ; low bytes,
 TC:     .byte $C9,$A0,$D8,$CE       ; the character that gets the Korean text (I of " IN ", space of " ERROR", X of EXTRA, N of REENTER),
 TK:     .byte $F1,$F2,$F4,$F5       ; and its key in KEK
 ; KPUTS: print the $00 ended text at (KPL): johab pairs and ASCII go to PLOTCH (the plot that PACK ends in; a lead byte waits
-; for the byte after it), a byte below $20 (CR, bell) goes to COUT. A, X and Y are not kept.
+; for the byte after it). No text has a control character (message 0 of DOS, CR, bell, CR, is left to DOS's own text). A, X and Y
+; are not kept.
 KPUTS:  ldy  #0
         lda  (KPL),y
         beq  @r
-        cmp  #$20
-        bcs  @c
-        jsr  COUT
-        jmp  @i
-@c:     sta  CHAR
+        sta  CHAR
         jsr  PLOTCH
-@i:     inc  KPL
+        inc  KPL
         bne  KPUTS
         inc  KPL+1
         bne  KPUTS

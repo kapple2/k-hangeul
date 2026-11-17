@@ -6,8 +6,10 @@ KMSGC:                          ; entered from KSTUB (16K) or K6MSG (Saturn) wit
 .if KGUARD
         lda  CSWH
         cmp  #$94                   ; DOS's output is not the driver's (PR#n): leave the English text
-        beq  @k
-        lda  #$A7                   ; go on at $A705, the  tax  that DOS's routine runs after  lda $AA3F,x
+        bne  @e
+        cpx  #$00                   ; message 0 is CR, bell, CR: DOS's own text prints it
+        bne  @k
+@e:     lda  #$A7                   ; go on at $A705, the  tax  that DOS's routine runs after  lda $AA3F,x
         pha
         lda  #$04
         pha

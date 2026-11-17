@@ -1,4 +1,4 @@
-# K-HANGEUL (캐플한글) v1.7 사용 설명서
+# K-HANGEUL (캐플한글) v1.8 사용 설명서
 
 > English version: [MANUAL_en.md](MANUAL_en.md)
 

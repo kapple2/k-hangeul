@@ -38,7 +38,12 @@ KDISP:  sta  KEA
         bne  @pass
         lda  KEX                    ; the key is the table offset of this character (the carry is set: cmp equal)
         bcs  @look
-@w2:    ldy  #3                     ; STROUT's caller (the words at $010C/D) against the four in TH/TL: ED $1F is " IN " (from
+@w2:    cmp  #$DB                   ; (A = $010B) the caller of OUTDO must be STROUT's loop ($4B $DB): SPC and TAB (OUTSP, called
+        bne  @pass                  ; from $DB35 = $37 $DB) and other output come through here too, and a statement's
+        lda  $010A,x                ; return address $D822 is under them: they must not be taken for ?EXTRA IGNORED
+        cmp  #$4B
+        bne  @pass
+        ldy  #3                     ; STROUT's caller (the words at $010C/D) against the four in TH/TL: ED $1F is " IN " (from
 @l:     lda  $010D,x                ; $ED19), D4 $33 is " ERROR" and BREAK (from $D431), D8 $22 is ?EXTRA IGNORED (the INPUT
         cmp  TH,y                   ; handler's caller, NEWSTT), DB $96 is ?REENTER (from $DB94)
         bne  @n
