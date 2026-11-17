@@ -12,7 +12,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import nbyte
 
 CHO = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 JUNG = [3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 18, 19, 20, 21, 22, 23, 26, 27, 28, 29]
@@ -79,7 +78,7 @@ DOS_EN = {1: "LANGUAGE NOT AVAILABLE", 2: "RANGE ERROR", 4: "WRITE PROTECTED", 5
           12: "NO BUFFERS AVAILABLE", 13: "FILE TYPE MISMATCH", 14: "PROGRAM TOO LARGE", 15: "NOT DIRECT COMMAND"}
 
 
-def dos_lines() -> list[str]:
+def dos_lines() -> tuple[list[str], int]:
     """the DOS messages for the 16K card (kdos_msg.inc, KGUARD = 1): one table, offsets KOFF"""
     lines = ["; made by src/tools/genkerr.py: do not edit. Korean DOS error messages as johab pairs ($0D, $07 go to COUT), $00 ended."]
     strings = {0: bytes([0x0D, 0x07, 0x0D])}
@@ -105,63 +104,11 @@ def dos_lines() -> list[str]:
     lines += body
     lines.append("KOFF:                           ; start of the text of message 0..15 in KSTR1")
     lines.append("        .byte " + ",".join("$%02X" % o for o in offs))
-    lines.append("KDOSTEXT = %d" % off)
-    return lines
+    return lines, off
 
 
 def hexs(b: bytes) -> str:
     return ",".join("$%02X" % x for x in b)
-
-
-def dos6_lines() -> list[str]:
-    """the DOS messages for the Saturn card (kdos_msg.inc, KGUARD = 0): Hangul-mode keystrokes in two tables KSTR1 / KSTR2
-    (an offset is one byte), the second from message KMSGK2 on"""
-    strings = {0: bytes([0x8D, 0x87, 0x8D])}
-    for k, v in DOS.items():
-        strings[k] = bytes(nbyte.encode(v))
-    strings[3] = strings[2]
-    tabs = [[], []]
-    off = 0
-    offs = []
-    done = {}
-    split = 16
-    for k in range(16):
-        s = strings[k]
-        if s in done and done[s][0] == (0 if split == 16 else 1):
-            offs.append(done[s][1])
-            continue
-        if split == 16 and off + len(s) + 1 > 255:
-            split, off = k, 0
-        t = 0 if split == 16 else 1
-        done[s] = (t, off)
-        offs.append(off)
-        txt = "CR BELL CR" if k == 0 else DOS[k]
-        tabs[t].append("        .byte %s    ; %d %s: %s" % (hexs(s + bytes([0])), k, DOS_EN.get(k, ""), txt))
-        off += len(s) + 1
-    lines = ["; made by src/tools/genkerr.py: do not edit. Korean DOS error messages as keystrokes (Saturn card, bank 6)."]
-    lines.append("KMSGK2 = %d                    ; the first message number whose text is in the second table" % split)
-    lines.append("KOFF:                           ; start of the Korean text of message 0..15, in KSTR1 or (from KMSGK2 on) KSTR2")
-    lines.append("        .byte " + ",".join("$%02X" % o for o in offs))
-    lines.append("KSTR1:")
-    lines += tabs[0]
-    lines.append("KSTR2:")
-    lines += tabs[1]
-    return lines
-
-
-def k6_lines() -> list[str]:
-    """the same texts as Hangul-mode keystrokes for the Saturn card (bank 6 prints through COUT): keys, then the texts in the
-    same order, found by counting $00 ends (kerr6.inc)"""
-    lines = ["; made by src/tools/genkerr.py: do not edit. Korean Applesoft error messages as keystroke text (Saturn card, bank 6)."]
-    keys = [off for off, en, ko in ROM] + [0xF1, 0xF2, 0xF3, 0xF4, 0xF5]
-    texts = [ko for off, en, ko in ROM] + [IN, ERR, BRK, EXTRA, REENTER]
-    lines.append("KEK:    .byte " + ",".join("$%02X" % k for k in keys))
-    lines.append("KEKN = %d" % len(keys))
-    lines.append("KET:")
-    for k, t in zip(keys, texts):
-        b = bytes(nbyte.encode(t)) + bytes([0])
-        lines.append("        .byte %s    ; $%02X %s" % (hexs(b), k, t))
-    return lines
 
 
 def main() -> None:
@@ -177,6 +124,8 @@ def main() -> None:
         b = johab(t) + bytes([0])
         total += len(b)
         lines.append("        .byte %s    ; $%02X %s" % (hexs(b), k, t))
+    dl, dostext = dos_lines()
+    lines.append("KDOSTEXT = %d                ; the bytes of the DOS texts in kdos_johab.inc (KSTR1, before KOFF); also for the Saturn card, which copies both text blocks" % dostext)
     if "--show" in sys.argv:
         print("text bytes", total)
         for off, en, ko in ROM:
@@ -185,11 +134,8 @@ def main() -> None:
     d = Path(args[0]).parent if args else Path(__file__).resolve().parent.parent / "driver"
     out = Path(args[0]) if args else d / "kerr_text.inc"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    (d / "kerr6_text.inc").write_text("\n".join(k6_lines()) + "\n", encoding="utf-8")
-    (d / "kdos6_text.inc").write_text("\n".join(dos6_lines()) + "\n", encoding="utf-8")
-    dl = dos_lines()
     (d / "kdos_johab.inc").write_text("\n".join(dl) + "\n", encoding="utf-8")
-    print("wrote", out, "text", total, "bytes; kdos_johab.inc", dl[-1])
+    print("wrote", out, "text", total, "bytes; kdos_johab.inc", dostext)
 
 
 if __name__ == "__main__":

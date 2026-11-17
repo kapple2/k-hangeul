@@ -41,6 +41,9 @@
 .if SATLOAD
 .import __SATDATA_LOAD__, __BANK6_LOAD__, __BANK6_SIZE__
 .endif
+.if SATURN
+KSTR1 = $D000                       ; (the Saturn build has no DOS texts in its image: SatFinish of this build is not shipped)
+.endif
 .export COUT, BHEX, BPAR, BDEC, NUM          ; the labels KBASIC calls (written to the label file by ld65 -Ln)
 
 ; ---------------------------------------------------------------------------
@@ -465,14 +468,10 @@ SatFinish:
         sta  SHMACHB
         lda  #$01                   ; the start-up banner is still to be shown
         sta  SATBANOK
-        lda  #<SATHAN               ; the HAN command: DOS jumps to its entry in the $9400 block
-        sta  $A59F
-        sta  $A55C                  ; and INIT stays the HAN command on Saturn (jmp SATHAN at $A55B): the INIT guard that
-        lda  #>SATHAN               ; puts stock DOS back while INIT writes a disk is plain-card only for now
+        lda  #<SATHAN               ; the HAN command: DOS jumps to its entry in the $9400 block (INIT is DOS's own, behind the
+        sta  $A59F                  ; INIT guard that KPATCH6 installs; where it cannot, KPATCH6 makes INIT run HAN)
+        lda  #>SATHAN
         sta  $A5A0
-        sta  $A55D
-        lda  #$4C
-        sta  $A55B
         lda  SatSelByte
         sta  SATSELV
         ldx  #$03
@@ -497,6 +496,30 @@ SatFinish:
         lda  #>__BANK6_SIZE__
         sta  $FF
         ldx  #<__BANK6_SIZE__
+        jsr  CopyBytes
+        lda  #<(__KERRRES_LOAD__ + KEK - KERRSEG)   ; the texts of the 16K card's filter, behind the code
+        sta  $06
+        lda  #>(__KERRRES_LOAD__ + KEK - KERRSEG)
+        sta  $07
+        lda  #<K6TXT
+        sta  $08
+        lda  #>K6TXT
+        sta  $09
+        lda  #>KERRTXT
+        sta  $FF
+        ldx  #<KERRTXT
+        jsr  CopyBytes
+        lda  #<(__LCIMG_LOAD__ + KSTR1 - $D000)     ; and the DOS texts (kdos_johab.inc), in the card's image
+        sta  $06
+        lda  #>(__LCIMG_LOAD__ + KSTR1 - $D000)
+        sta  $07
+        lda  #<(K6TXT + KERRTXT)
+        sta  $08
+        lda  #>(K6TXT + KERRTXT)
+        sta  $09
+        lda  #>(KDOSTEXT + 16)
+        sta  $FF
+        ldx  #<(KDOSTEXT + 16)
         jsr  CopyBytes
         lda  $C08F                  ; bank 7 again, page 2 write enabled, as before
         lda  LCROMWR
@@ -1145,32 +1168,33 @@ SatBanner:                          ; the end of STOCKINIT: the start-up banner,
 ; ---------------------------------------------------------------------------
 ; Korean DOS on a Saturn card (the code is in bank 6, segment BANK6, scope K6). Only with the driver in bank 7. KPATCH6 writes
 ; the stubs and patches DOS like KPATCH of the 16K card build; each patch only if DOS has the stock bytes there. The stubs:
+;   in DOS's unused bytes $BCDF-$BCFF (they go to a new disk with the DOS image: they must work without the driver):
 ;   K6IN  ($BCDF) count the entry (SATDEPTH, as SatEnter does) and map bank 6, $D000 page 1, read
-;   K6SEL ($BCE2) the last part of it, also used by K6PUT
-;   K6MSG ($BCE9) DOS's message routine ($A702): K6IN, then K6::KMSGC
-;   K6AL  ($BCEF) DOS's code for a line it does not know ($A000): K6IN, then K6::KAL
-;   K6PUT ($BCF5) print A from bank 6: the driver's output entry $940A (which enters and leaves bank 7), then bank 6 again
-;   K6FN  ($951A, free bytes of the $9400 block, made again by every SATCOPY) DOS's file name check ($A04D): K6IN, K6::KFNC
-; INIT still runs HAN on a Saturn card (the loader writes jmp SATHAN at $A55B), so these patches never reach a new disk.
+;   K6SEL ($BCE2) the last part of it, also used by K6PLT
+;   K6MSG ($BCE9) DOS's message routine ($A702 is  jsr K6MSG): while DOS's output is the driver's ($37 = $94) K6IN, then
+;         K6::KMSGC; otherwise  lda $AA3F,x / rts  as the stock routine did (the disk made by INIT has no driver)
+;   K6GD  ($BCF9) DOS's handler for INIT (the INIT guard, kinit6.inc): K6IN, then K6::KGD
+;   in the free bytes of the $9400 block (made again by every SATCOPY, so KPATCH6 writes them every time):
+;   K6AL  ($94FB) DOS's code for a line it does not know ($A000): K6IN, then K6::KAL
+;   K6PLT ($9501) print the byte A from bank 6 through the driver's PLOTCH (the johab text of kerr6.inc): SatEnter, PLOTCH,
+;         SatLeave1, then bank 6 again (K6SEL)
+;   K6FN  ($951A) DOS's file name check ($A04D): K6IN, K6::KFNC (also the error filter: KBOUT calls it)
+; KPATCH6 writes the stubs, then calls K6GD, which patches DOS from bank 6 (KPAT, kinit6.inc: it saves room in this block). If the stubs
+; cannot be written (the driver is not in bank 7, or $BCDF-$BCFF is not free) INIT keeps running HAN (jmp SATHAN at $A55B).
 ; ---------------------------------------------------------------------------
-K6IN  = $BCDF
-K6SEL = K6IN + 3
-K6MSG = K6IN + 10
-K6AL  = K6IN + 16
-K6PUT = K6IN + 22
-K6FN  = $951A                           ; 6 bytes, $951A-$951F (it was at $95A6, inside S_05D0)
-.assert K6PUT = K6::KPUTC, error, "K6PUT moved"
 .assert SatLeave1 = K6::KX, error, "SatLeave1 moved"
 .assert SatEnter = K6::SatEnter6, error, "SatEnter moved (kerr6.inc)"
 .assert SATDEPTH = K6::SatDepth6, error, "SATDEPTH moved (kerr6.inc)"
 K6DB:   .byte $EE,<SATDEPTH,>SATDEPTH, $2C,$8E,$C0, $2C,$88,$C0, $60     ; K6IN: inc SATDEPTH / bit $C08E / bit $C088 / rts
-        .byte $20,<K6IN,>K6IN, $4C,<K6::KMSGC,>K6::KMSGC                ; K6MSG
-        .byte $20,<K6IN,>K6IN, $4C,<K6::KAL,>K6::KAL                    ; K6AL
-        .byte $20,$0A,$94, $4C,<K6SEL,>K6SEL                            ; K6PUT
+        .byte $A5,$37, $C9,$94, $D0,$06, $20,<K6IN,>K6IN, $4C,<K6::KMSGC,>K6::KMSGC, $BD,$3F,$AA, $60   ; K6MSG
+        .byte $20,<K6IN,>K6IN, $4C,<K6::KGD,>K6::KGD                    ; K6GD
 K6DSZ = * - K6DB
 .assert K6DSZ <= 33, error, "the Saturn stubs do not fit in $BCDF-$BCFF"
+K6GB:   .byte $20,<K6IN,>K6IN, $4C,<K6::KAL,>K6::KAL                    ; K6AL
+        .byte $20,<SatEnter,>SatEnter, $20,<PLOTCH,>PLOTCH, $20,<SatLeave1,>SatLeave1, $4C,<K6SEL,>K6SEL   ; K6PLT
+K6GSZ = * - K6GB
+.assert K6AL + K6GSZ <= SATDEPTH, error, "the stubs run into SATDEPTH"
 K6FNB:  .byte $20,<K6IN,>K6IN, $4C,<K6::KDISP,>K6::KDISP                ; K6FN (KDISP: the file name check, or the error filter)
-K6R:    rts
 KPATCH6:
         ldx  #5
 @n:     lda  K6FNB,x                    ; K6FN is called by KBOUT too: it has to be there in every case
@@ -1182,57 +1206,30 @@ KPATCH6:
         beq  @ok
         lda  #$60                       ; no bank 6 code: K6FN is an rts
         sta  K6FN
+@han:   lda  #$4C                       ; and INIT runs HAN, as it did before the INIT guard
+        sta  $A55B
+        lda  #<SATHAN
+        sta  $A55C
+        lda  #>SATHAN
+        sta  $A55D
         rts
-@ok:    lda  K6IN
+@ok:    ldx  #K6GSZ-1
+@g:     lda  K6GB,x                     ; the stubs in the $9400 block
+        sta  K6AL,x
+        dex
+        bpl  @g
+        lda  K6IN
         cmp  #$EE                       ; the stubs are there already (HAN, the rebuild entry)
         beq  @m
         ora  K6IN+K6DSZ-1               ; else the first and the last byte must be free (zero)
-        bne  K6R
+        bne  @han
         ldx  #K6DSZ-1
 @c:     lda  K6DB,x
         sta  K6IN,x
         dex
         bpl  @c
-@m:     lda  $A702                      ; messages: lda $AA3F,x / tax (the first byte is checked)
-        cmp  #$BD
-        bne  @f
-        lda  #$4C
-        sta  $A702
-        lda  #<K6MSG
-        sta  $A703
-        lda  #>K6MSG
-        sta  $A704
-@f:     lda  $A04F                      ; file names: jmp $A000 at $A04D
-        cmp  #$A0
-        bne  @a
-        lda  #<K6FN
-        sta  $A04E
-        lda  #>K6FN
-        sta  $A04F
-@a:     lda  $A000                      ; command names: lda $0200 at $A000
-        cmp  #$AD
-        bne  @h
-        lda  #$4C
-        sta  $A000
-        lda  #<K6AL
-        sta  $A001
-        lda  #>K6AL
-        sta  $A002
-@h:     lda  $ADAF                      ; the CATALOG header, as in KPATCH
-        cmp  #$0B
-        bne  @x
-        lda  $B3AF
-        cmp  #$A0
-        bne  @x
-        lda  #$08
-        sta  $ADAF
-        ldx  #$08
-@hc:    lda  KHDR6,x
-        sta  $B3AF,x
-        dex
-        bpl  @hc
-@x:     rts
-KHDR6:  .byte $A0,$81,$C1,$C2,$C6,$C6,$C8,$D1,$8B
+@m:     jsr  K6GD                       ; the rest, in bank 6 (KPAT, kinit6.inc): K6GD sees that the caller is the driver
+        rts
 SatPadEnd:
         .res FMASK-$D000-(*-FREE_D000)
         .incbin "build/FONT12.bin", 4416, 42      ; the shift masks, at the end of the font file
@@ -1256,9 +1253,8 @@ SatReinitEntry:
 ; DOS routine did. The texts are Hangul keystroke text (Ctrl-K, keys, Ctrl-A), which COUT draws; each ends with $00.
 ; Message 0 is CR, bell, CR; messages 2 and 3 are both RANGE ERROR. The English text stays in DOS.
 ; ---------------------------------------------------------------------------
-KX = KEXIT                          ; the routines in kdos_msg.inc and kdos_cmd.inc leave through KX, print through KPUTC,
-KPUTC = COUT                        ; and swap the INIT guard back if KGUARD (the bank-6 copy for Saturn sets them otherwise)
-KGUARD = 1
+KX = KEXIT                          ; the routines in kdos_msg.inc and kdos_cmd.inc leave through KX (the bank-6 copy for Saturn
+KGUARD = 1                          ; sets it otherwise); KGUARD: the 16K card's message code (the Saturn one is shorter)
 .include "kdos_msg.inc"
 ; The start-up banner (BN, assembled at $1CC0 in main RAM) runs once, at boot: STATEINIT ends in  jmp PBAN  (it was jmp BN), so
 ; HAN, Ctrl-Reset and INIT print no banner again. When BN has run it ends in  jmp KRC  (card on): KRC copies the Korean error
@@ -6512,19 +6508,28 @@ KALS:   bit  LCRAMRD
 
 ; Saturn card: the Korean DOS code for bank 6, $D000 page 1 (kScheme leaves that page alone when K-HANGEUL is in bank 7).
 ; SatFinish copies it there when the driver goes into bank 7. It runs from main RAM stubs (K6IN, in DOS's unused bytes
-; $BCDF, written by KPATCH6) that count the entry and map bank 6 page 1; it prints through K6PUT (the driver's $940A, then
-; bank 6 again) and leaves through SatLeave1 (bank 0 and the caller's card state). It does not depend on SATURN, so the
+; $BCDF, written by KPATCH6) that count the entry and map bank 6 page 1; it prints johab text through K6PLT (the driver's PLOTCH,
+; then bank 6 again) and leaves through SatLeave1 (bank 0 and the caller's card state). It does not depend on SATURN, so the
 ; plain-and-patch-list build (build) carries the same bytes as the Saturn build.
 .segment "BANK6"
 .if SATLOAD
 .scope K6
 KX = $9521                          ; SatLeave1 (SATR1)
-KPUTC = $BCF5                       ; K6PUT
 KGUARD = 0
+; The texts are not in this segment: SatFinish copies the 16K card's own (kerr_text.inc: KEK, KET; kdos_johab.inc: KSTR1, KOFF),
+; which are in the file anyway, behind the code, at K6TXT. That saves the second copy in the file.
+KEK = ::K6TXT
+KET = ::K6TXT + KEKN
+KSTR1 = ::K6TXT + ::KERRTXT
+KOFF = KSTR1 + KDOSTEXT
 .include "kdos_msg.inc"
 .include "kdos_cmd.inc"
+.include "kinit6.inc"
 .include "kerr6.inc"
 .endscope
+K6TXT:                              ; the texts follow the code (they are copied there, not in the segment)
+KERRTXT = KERREND - KEK             ; the bytes of the keys and the texts of the Korean error messages (kerr_text.inc)
+.assert K6TXT - $D000 + KERRTXT + KDOSTEXT + 16 <= $1000, error, "bank 6 page 1 is full"
 .endif
 
 ; the second 4K bank of the 16K language card ($D000, bank 1 in card terms): code and tables for the fast English draw. The

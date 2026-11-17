@@ -1,6 +1,6 @@
 ; Korean DOS command names and Hangul-first file names.
-; Included twice by driver.s: in the 16K card build (KX = KEXIT, KPUTC = COUT, KGUARD = 1) and, for a Saturn card, in the
-; BANK6 segment (scope K6: KX = SatLeave1, KPUTC = the K6PUT stub, KGUARD = 0). See docs/DOS_KOREAN_REPORT.md section 9.
+; Included twice by driver.s: in the 16K card build (KX = KEXIT, KGUARD = 1) and, for a Saturn card, in the
+; BANK6 segment (scope K6: KX = SatLeave1, KGUARD = 0). See docs/DOS_KOREAN_REPORT.md section 9.
 ; Korean DOS command names (report section 6). DOS sends every line it does not know to $A000 (a typed line goes on to
 ; Applesoft, a program line gets DOS's own SYNTAX ERROR). INIT patches $A000 into a jump to KALS (main RAM), which comes here
 ; with the card on. The line is in $0200; a line from a program has Ctrl-D ($84) at $0200 and the text from $0201. If the text

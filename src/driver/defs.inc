@@ -303,3 +303,12 @@ BELLD = BELL                    ; stock: INIT copies the bell routine to $1CB0
 .endif
 SATREINIT = $D3FA                ; the frozen rebuild entry in the K-HANGEUL bank (page 2): jmp STATEINIT; $D3FD version $01, $D3FE magic $5A
 KPL = $1A                       ; zero page pointer of KPUTS (kerr.inc, kdos_msg.inc): the draw code uses $00-$09, the driver nothing at $1A/$1B
+
+; Saturn card: the stubs of the Korean DOS code (driver.s, "Korean DOS on a Saturn card"); bank 6 (kerr6.inc, kinit6.inc) uses them
+K6IN  = $BCDF                       ; DOS's unused bytes $BCDF-$BCFF (K6IN, K6SEL, K6MSG, K6GD)
+K6SEL = K6IN + 3
+K6MSG = K6IN + 10
+K6GD  = K6IN + 26
+K6AL  = $94FB                       ; the dead glyph buffer $94F1-$9510 (the line editor's bytes are $94F1-$94F7, KEA-KEY $94F8-$94FA)
+K6PLT = K6AL + 6
+K6FN  = $951A                       ; 6 bytes, $951A-$951F

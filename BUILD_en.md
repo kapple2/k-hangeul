@@ -120,7 +120,7 @@ You should see `HELLO`, `K-HANGEUL`, `FONT12`, `FONT6X10`, `TYPE`, `TYPEC`, `STY
 
 **Change the driver.** Edit `src\driver\driver.s` and `defs.inc` (or `kerr.inc`, `kerr6.inc`, `kdos_msg.inc`, `kdos_cmd.inc`), then run `build.bat`. Do not patch the binaries: the source is assembly.
 
-**Change an error message text.** The Korean texts of the Applesoft errors and of the DOS messages are in the table at the top of `src\tools\genkerr.py`. Run `py -3 src\tools\genkerr.py`: it remakes `kerr_text.inc`, `kerr6_text.inc` and `kdos_johab.inc` (they are committed, and `build.bat` does not run the tool), then run `build.bat`. The 16K card's filter has `$191` bytes (`$1CC0-$1E50`, an assert checks) and the file must end before `$6000` (the `MAIN` area of `driver.cfg` checks that; 7 bytes are left in 1.6). The tool also makes `kdos6_text.inc` (the DOS texts of the Saturn card, as keystrokes).
+**Change an error message text.** The Korean texts of the Applesoft errors and of the DOS messages are in the table at the top of `src\tools\genkerr.py`. Run `py -3 src\tools\genkerr.py`: it remakes `kerr_text.inc` and `kdos_johab.inc` (they are committed, and `build.bat` does not run the tool), then run `build.bat`. Both cards use the same texts (since 1.7 the Saturn card copies the 16K card's from the file into bank 6). The 16K card's filter has `$191` bytes (`$1CC0-$1E50`, an assert checks) and the file must end before `$6000` (the `MAIN` area of `driver.cfg` checks that; 209 bytes are left in 1.7).
 
 **Change the sample text.** Edit the UTF-8 files in `src\samples\utf8txt\`, then run `build.bat` (see `src\samples\README.md`).
 

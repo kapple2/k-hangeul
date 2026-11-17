@@ -17,4 +17,3 @@ KSTR1:
         .byte $BB,$A2,$B8,$F3,$A6,$89,$88,$61,$00    ; 15 NOT DIRECT COMMAND: 직접불가
 KOFF:                           ; start of the text of message 0..15 in KSTR1
         .byte $00,$04,$0D,$0D,$17,$20,$27,$30,$39,$45,$4E,$57,$61,$6A,$73,$7C
-KDOSTEXT = 133

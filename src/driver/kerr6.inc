@@ -1,11 +1,11 @@
-; Korean Applesoft error messages, Saturn card: the code and the keystroke text are in bank 6, page 1 (scope K6, segment BANK6).
-; Same idea as kerr.inc (read it first): KBOUT in the driver (bank 7) does  jsr K6FN  (the stub at $951A, which also serves DOS's
+; Korean Applesoft error messages, Saturn card: the code and the johab text are in bank 6, page 1 (scope K6, segment BANK6).
+; Same idea as kerr.inc (read it first), and the same johab texts: KBOUT in the driver (bank 7) does  jsr K6FN  (the stub at $951A, which also serves DOS's
 ; file name check). K6FN is  jsr K6IN / jmp KDISP: bank 6 is mapped, SatDepth6 counted, and the stack is as kerr.inc's KEFILT
 ; finds it, because the entry stub $940A is the same in both arrangements. The code returns to the driver (bank 7, page 2,
 ; card write enabled) by  jmp SatEnter  (its rts goes to KBOUT, or, when the character was swallowed, to the output stub: the
 ; return into KBOUT and the pushed A are dropped first), after two  dec SatDepth6  (K6IN's count and SatEnter's).
-; The text is printed through K6PUT, like the Korean DOS messages. The texts are counted off by their $00 ends: KEK is
-; their keys, in the same order (kerr6_text.inc).
+; The text is printed by KPUTS below, like the Korean DOS messages. The texts are counted off by their $00 ends: KEK is
+; their keys, in the same order (kerr_text.inc, which genkerr.py makes for both cards).
 SatEnter6 = $95EE                   ; SatEnter (SATR3 + 11): driver.s asserts it
 SatDepth6 = $9511                   ; SATDEPTH
 KDISP:  sta  KEA
@@ -74,28 +74,21 @@ KDISP:  sta  KEA
         pha                         ; overwrites KEA, KEX and KEY: keep the X and Y of the ROM on the stack meanwhile
         lda  KEY
         pha
-        lda  #<KET                  ; the text is the X'th: count off X ends (the table is longer than 256 bytes)
+        ldy  #0                     ; the text is the X'th: count off X ends
+@w:     dex
+        bmi  @p
+@s:     iny
+        lda  KET-1,y
+        bne  @s
+        beq  @w
+@p:     tya
+        clc
+        adc  #<KET
         sta  KPL
         lda  #>KET
+        adc  #0
         sta  KPL+1
-        ldy  #0
-@w:     dex
-        bmi  @o
-@s:     lda  (KPL),y
-        beq  @z
-        inc  KPL
-        bne  @s
-        inc  KPL+1
-        bne  @s
-@z:     inc  KPL
-        bne  @w
-        inc  KPL+1
-        bne  @w
-@o:     lda  (KPL),y
-        beq  @r
-        jsr  KPUTC                  ; keeps A, X and Y
-        iny
-        bne  @o
+        jsr  KPUTS
 @r:     pla
         sta  KEY
         pla
@@ -112,4 +105,17 @@ TH:     .byte $ED,$D4,$D8,$DB       ; the callers of STROUT: high bytes,
 TL:     .byte $1F,$33,$22,$96       ; low bytes,
 TC:     .byte $C9,$A0,$D8,$CE       ; the character that gets the Korean text (I of " IN ", space of " ERROR", X of EXTRA, N of REENTER),
 TK:     .byte $F1,$F2,$F4,$F5       ; and its key in KEK
-.include "kerr6_text.inc"
+; KPUTS: print the $00 ended johab text at (KPL) as the 16K card does (kerr.inc), but through bank 7: K6PLT (main RAM) enters the
+; driver, calls PLOTCH with the byte in A (CHAR set), leaves and maps this page again. Bytes of a text are 8 bits or johab pairs;
+; none is a control character (message 0 of DOS, CR, bell, CR, is left to DOS's own text).
+KPUTS:  ldy  #0
+        lda  (KPL),y
+        beq  @r
+        sta  CHAR
+        jsr  K6PLT
+        inc  KPL
+        bne  KPUTS
+        inc  KPL+1
+        bne  KPUTS
+@r:     rts
+; KEK, KET (the keys and the texts): kerr_text.inc's bytes, put behind this code by SatFinish (driver.s, K6TXT)

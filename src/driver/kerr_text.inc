@@ -24,3 +24,4 @@ KET:                        ; the texts in the order of the keys, each ended by 
         .byte $BA,$97,$94,$65,$00    ; $F3 중단
         .byte $B7,$B3,$9D,$62,$20,$A2,$81,$AF,$A1,$00    ; $F4 입력 무시
         .byte $94,$61,$AF,$A1,$20,$B7,$B3,$9D,$62,$00    ; $F5 다시 입력
+KDOSTEXT = 133                ; the bytes of the DOS texts in kdos_johab.inc (KSTR1, before KOFF); also for the Saturn card, which copies both text blocks

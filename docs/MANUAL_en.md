@@ -1,4 +1,4 @@
-# K-HANGEUL (캐플한글) v1.6 user manual
+# K-HANGEUL (캐플한글) v1.7 user manual
 
 > 한국어: [MANUAL.md](MANUAL.md)
 
@@ -243,7 +243,7 @@ They do what `TYPE` does, but instead of typing each letter they **draw a whole 
 
 ## 8. Korean DOS
 
-While K-HANGEUL is loaded, DOS 3.3 talks Korean, with a 16K language card and with a 128K Saturn card. **One difference on a Saturn card: `INIT` (`포맷`) does not format there yet**; it restarts the driver as `HAN` does. Format disks with a 16K card or without K-HANGEUL. On a Saturn card that is not 128K (the driver not in bank 7), DOS stays English.
+While K-HANGEUL is loaded, DOS 3.3 talks Korean, with a 16K language card and with a 128K Saturn card. `INIT` (`포맷`) formats a disk on both cards (on the Saturn card since 1.7). On a Saturn card that is not 128K (the driver not in bank 7), DOS stays English.
 
 **Error messages and the CATALOG header** are in Korean:
 
@@ -282,7 +282,7 @@ How to type them:
 
 **Hangul file names.** A file name may start with Hangul: `SAVE ` Ctrl-K `한글` Ctrl-A. `CATALOG` shows it in Hangul. A name holds 30 key presses, about 7 to 9 syllables.
 
-**`포맷` / `INIT`** (16K card) formats a disk and saves the program in memory on it, as in plain DOS 3.3. The new disk gets plain DOS 3.3, so it also boots on a machine without K-HANGEUL; to use Hangul on it, copy the files as in section 9.
+**`포맷` / `INIT`** (both cards; the Saturn card since 1.7) formats a disk and saves the program in memory on it, as in plain DOS 3.3. The new disk gets plain DOS 3.3, so it also boots on a machine without K-HANGEUL; to use Hangul on it, copy the files as in section 9.
 
 **Stopping `CATALOG`.** When the listing has paused at the end of a page, **Ctrl-C** ends it and returns to the `]` prompt. Any other key shows the next page (the original DOS 3.3 went on listing for Ctrl-C too). It works on the 16K card and the Saturn card.
 
