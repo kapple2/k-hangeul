@@ -206,6 +206,13 @@ S_06C7 = $94BC            ; was $06C7 in the text page
 S_06D0 = $95AE            ; was $06D0: the type-ahead ring, 32 bytes ($95AE-$95CD)
 S_0728 = $94C9            ; was $0728 in the text page
 S_0750 = $94F1            ; was $0750 in the text page
+STOPCV  = $94F1            ; (the glyph buffer S_0750-S_076F is dead: nothing reads it) the row where the fetch of a line stops, $A0 = none
+STOPCH  = $94F2            ; its column
+CRB     = $94F3            ; CLRROW's scratch bytes (the same dead glyph buffer)
+CRM     = $94F4
+ENDV    = $94F5            ; where the typed text of the line being edited ends (row; $A0 = not known)
+ENDH    = $94F6            ; (column)
+LESC    = $94F7            ; not 0: the last key was ESC
 S_0751 = $94F2            ; was $0751 in the text page
 S_0759 = $94FA            ; was $0759 in the text page
 S_075F = $9500            ; was $075F in the text page

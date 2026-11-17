@@ -2548,8 +2548,8 @@ L_E652:
 L_E654:
         ldy  CH                     ; E654  A4 24
 L_E656:
-        lda  (BASL),y               ; E656  B1 28
-        cmp  #$9F                   ; E658  C9 9F
+        jsr  FCHK                   ; was lda (BASL),y / cmp #$9F: the same, but the fetch stops at the cursor (FCHK)
+        nop
         beq  L_E69F                 ; E65A  F0 43
         bit  S_0666                 ; E65C  2C 93 94
         bmi  L_E697                 ; E65F  30 36
@@ -2774,7 +2774,7 @@ L_E7EA:
         bpl  L_E7F2                 ; E7ED  10 03
         jsr  L_E948                 ; E7EF  20 48 E9
 L_E7F2:
-        jsr  L_EAF1                 ; E7F2  20 F1 EA
+        jsr  CXREAD                 ; was jsr L_EAF1: the same, and Ctrl-X cancels the line (CXREAD)
         cmp  #$A0                   ; E7F5  C9 A0
         bcc  L_E83E                 ; E7F7  90 45
 L_E7F9:
@@ -2847,13 +2847,8 @@ L_E870:
 L_E871:
         rts                         ; E871  60
 L_E872:
-        lda  #$00                   ; E872  A9 00
-        sta  S_04D0                 ; E874  8D 28 94
-        jsr  L_E7D4                 ; E877  20 D4 E7
-        bcs  L_E871                 ; E87A  B0 F5
-        jsr  L_E60E                 ; E87C  20 0E E6
-        bcs  L_E871                 ; E87F  B0 F0
-        rts                         ; E881  60
+        jmp  FETCHCUR               ; was lda #$00 / sta S_04D0 / jsr L_E7D4 / bcs / jsr L_E60E / bcs / rts (16 bytes)
+        .res 13, $EA
 L_E882:
         lda  PROMPTCH               ; E882  A5 33
         cmp  #$DD                   ; E884  C9 DD
@@ -3563,13 +3558,8 @@ L_ED51:
         lda  HGRHI,x                ; ED59  BD 9C E1
         ora  $E6                    ; ED5C  05 E6
         sta  $FD                    ; ED5E  85 FD
-        lda  #$00                   ; ED60  A9 00
-        ldy  S_0552                 ; ED62  AC 52 94
-L_ED65:
-        sta  ($FC),y                ; ED65  91 FC
-        iny                         ; ED67  C8
-        cpy  #$28                   ; ED68  C0 28
-        bcc  L_ED65                 ; ED6A  90 F9
+        jsr  CLRROW                 ; was lda #$00 / ldy S_0552 / sta ($FC),y / iny / cpy #$28 / bcc: clear one pixel row from the column
+        .res 9, $EA                 ; S_0552 (CLRROW does it from the pixel, not from the byte with the column's number)
         inx                         ; ED6C  E8
         dec  S_0553                 ; ED6D  CE 53 94
         bne  L_ED51                 ; ED70  D0 DF
@@ -4224,95 +4214,96 @@ L_F1CB:
         ; itself). It was about 2,000 cycles of every syllable. Skipped; the bytes stay where they were.
         jmp  DRAWKO2                ; was lda #$00 / ldx #$1F
         .byte $EA
-L_F1D2:
-        sta  S_0750,x               ; F1D2  9D F1 94
-        dex                         ; F1D5  CA
-        bpl  L_F1D2                 ; F1D6  10 FA
-        ldy  JUNGI                  ; F1D8  AC A1 94
-        lda  D_E338,y               ; F1DB  B9 38 E3
-        ldx  JONGI                  ; F1DE  AE A2 94
-        beq  L_F1E6                 ; F1E1  F0 03
-        clc                         ; F1E3  18
-        adc  #$03                   ; F1E4  69 03
-L_F1E6:
-        asl  a                      ; F1E6  0A
-        tax                         ; F1E7  AA
-        lda  D_E25C,x               ; F1E8  BD 5C E2
-        sta  P0L                    ; F1EB  85 00
-        lda  D_E25D,x               ; F1ED  BD 5D E2
-        sta  P0H                    ; F1F0  85 01
-        lda  D_E26C,x               ; F1F2  BD 6C E2
-        ldy  CHOI                   ; F1F5  AC A0 94
-        jsr  L_F2DD                 ; F1F8  20 DD F2
-        lda  P0L                    ; F1FB  A5 00
-        sta  P1L                    ; F1FD  85 02
-        lda  P0H                    ; F1FF  A5 01
-        sta  P1H                    ; F201  85 03
-        lda  D_E26D,x               ; F203  BD 6D E2
-        bne  L_F212                 ; F206  D0 0A
-        lda  #$00                   ; F208  A9 00
-        sta  P0L                    ; F20A  85 00
-        lda  #$D8                   ; F20C  A9 D8
-        sta  P0H                    ; F20E  85 01
-        bne  L_F21A                 ; F210  D0 08
-L_F212:
-        lda  D_E26C,x               ; F212  BD 6C E2
-        ldy  #$14                   ; F215  A0 14
-        jsr  L_F2DD                 ; F217  20 DD F2
-L_F21A:
-        ldy  D_E26C,x               ; F21A  BC 6C E2
-        jsr  L_F304                 ; F21D  20 04 F3
-        ldx  JONGI                  ; F220  AE A2 94
-        beq  L_F227                 ; F223  F0 02
-        ldx  #$02                   ; F225  A2 02
-L_F227:
-        lda  D_E268,x               ; F227  BD 68 E2
-        sta  P0L                    ; F22A  85 00
-        lda  D_E269,x               ; F22C  BD 69 E2
-        sta  P0H                    ; F22F  85 01
-        lda  D_E278,x               ; F231  BD 78 E2
-        ldy  JUNGI                  ; F234  AC A1 94
-        jsr  L_F2DD                 ; F237  20 DD F2
-        lda  P0L                    ; F23A  A5 00
-        sta  P1L                    ; F23C  85 02
-        lda  P0H                    ; F23E  A5 01
-        sta  P1H                    ; F240  85 03
-        lda  D_E278,x               ; F242  BD 78 E2
-        ldy  #$16                   ; F245  A0 16
-        jsr  L_F2DD                 ; F247  20 DD F2
-        ldy  D_E278,x               ; F24A  BC 78 E2
-        jsr  L_F304                 ; F24D  20 04 F3
-        ldy  JONGI                  ; F250  AC A2 94
-        beq  L_F289                 ; F253  F0 34
-        lda  #$C4                   ; F255  A9 C4
-        sta  P0L                    ; F257  85 00
-        lda  #$DF                   ; F259  A9 DF
-        sta  P0H                    ; F25B  85 01
-        lda  #$05                   ; F25D  A9 05
-        jsr  L_F2DD                 ; F25F  20 DD F2
-        lda  P0L                    ; F262  A5 00
-        sta  P1L                    ; F264  85 02
-        lda  P0H                    ; F266  A5 01
-        sta  P1H                    ; F268  85 03
-        lda  #$8C                   ; F26A  A9 8C
-        ldy  #$00                   ; F26C  A0 00
-        clc                         ; F26E  18
-        jsr  L_F2FA                 ; F26F  20 FA F2
-        ldy  #$05                   ; F272  A0 05
-L_F274:
-        dey                         ; F274  88
-        lda  (P1L),y                ; F275  B1 02
-        ora  S_0759,y               ; F277  19 FA 94
-        sta  S_0759,y               ; F27A  99 FA 94
-        lda  (P0L),y                ; F27D  B1 00
-        ora  S_0769,y               ; F27F  19 0A 95
-        sta  S_0769,y               ; F282  99 0A 95
-        cpy  #$00                   ; F285  C0 00
-        bne  L_F274                 ; F287  D0 EB
-L_F289:
-        lda  S_06B0                 ; F289  AD A5 94
-        sta  S_076F                 ; F28C  8D 10 95
-        sta  S_075F                 ; F28F  8D 00 95
+; The stock glyph code that was here (192 bytes, up to DRAWKO2) cannot be reached; the stock code behind it must not move (raw
+; bytes with absolute addresses), so the space is used for line editing as stock GETLN does it, and the block keeps its size:
+;   FCHK, FETCHCUR  Return reads the line only up to where the typed text ends, so what the left arrow backed over is not in the
+;                   line. FETCHLINE starts at the first row of the line and stops at STOPCV/STOPCH (STOPCV = $A0: no stop).
+;   CXREAD          keeps ENDV/ENDH, the end of the typed text, and handles Ctrl-X (cancel the line)
+;   CLRROW          ESC E and ESC F clear from the pixel of the column (the stock code cleared from the byte with its number)
+FCHK:   lda  CV
+        cmp  STOPCV
+        bne  @go
+        cpy  STOPCH
+        bcc  @go
+        pla                             ; the return address of the jsr at L_E656
+        pla
+        jmp  L_E6C0                     ; the end of the line, as when the row ends
+@go:    lda  (BASL),y                   ; what L_E656 did
+        cmp  #$9F
+        rts
+FETCHCUR:                               ; L_E872: fetch the line up to where the typed text ends (ENDV/ENDH, see CXREAD).
+        lda  S_04D0                     ; A syllable still being composed is on the screen, but the cursor is in front of it:
+        beq  @c                         ; step over it (as L_E82C does when another key follows), or the fetch stops before it.
+        jsr  L_EBF1                     ; (The cursor was the end of the text, so it is again.)
+        jsr  L_EBF1
+        lda  CV
+        sta  ENDV
+        lda  CH
+        sta  ENDH
+@c:     lda  #$00
+        sta  S_04D0
+        lda  ENDV                       ; the fetch below starts at the first row of the line and stops at the end of the text
+        sta  STOPCV
+        lda  ENDH
+        sta  STOPCH
+        jsr  L_E7D4
+        bcs  @done
+        jsr  L_E60E
+@done:  lda  #$A0                       ; no stop for the other fetches (lda and sta keep the carry)
+        sta  STOPCV
+        rts
+CXREAD:                                 ; the key for the line editor. First the end of the typed text (ENDV/ENDH): the cursor as
+        lda  LESC                       ; the last key left it, unless that key was ESC: the cursor moves and clears of ESC leave
+        bne  @s                         ; the text alone, as stock GETLN's buffer is. Typing, left arrow and right arrow move the
+        lda  CV                         ; cursor and so the end; Return then reads the text up to the end, not up to the cursor.
+        sta  ENDV
+        lda  CH
+        sta  ENDH
+@s:     lda  #$00
+        sta  LESC
+        jsr  L_EAF1                     ; Ctrl-X ($98) cancels the line, as stock GETLN does: it prints "\" and a CR (no prompt, as
+        cmp  #$9B                       ; stock). The new row is a new line (the next Return fetches only that row). The key that
+        bne  @x                         ; goes on is $9F, which the editor's loop ignores.
+        sta  LESC                       ; ESC: the next key's end-of-text update is skipped
+@x:     cmp  #$98
+        bne  @r
+        lda  S_04D0                     ; a half-composed syllable is dropped, as L_E82C does
+        beq  @n
+        jsr  L_EBF1
+        jsr  L_EBF1
+        lda  #$00
+        sta  S_04D0
+@n:     lda  #$DC                       ; "\"
+        jsr  COUT
+        lda  #$8D
+        jsr  COUT
+        lda  #$9F
+@r:     rts
+CLRROW:                                 ; clear pixel row ($FC) from the text column S_0552 to the right edge. A cell is 6 pixels
+        ldy  S_0552                     ; wide and a byte holds 7, so column c starts at pixel 6c: in byte CRB, r pixels in (stock
+        lda  #$00                       ; cleared from the byte with the number c: ESC E and ESC F left what was left of it).
+        sta  CRB                        ; Step c times: add 6, and carry 7 into the byte number.
+@l:     dey
+        bmi  @d
+        clc
+        adc  #$06
+        cmp  #$07
+        bcc  @l
+        sbc  #$07
+        inc  CRB
+        bcs  @l
+@d:     tay                             ; Y = r: the first byte keeps its r low bits (the cells before the column)
+        lda  #$00
+@m:     dey
+        bmi  @e
+        sec
+        rol  a
+        bcc  @m
+@e:     sta  CRM
+        ldy  CRB
+        jmp  CLRTAIL                    ; (in the stock code that nothing reaches, at L_F304)
+        .assert * - FCHK <= 192, error, "the dead glyph code is only 192 bytes"
+        .res 192 - (* - FCHK), $EA
 DRAWKO2:
 .if SATURN
         jsr  KOBLIT                 ; F292  20 D8 EB
@@ -4384,17 +4375,19 @@ L_F2FA:
         adc  P0H                    ; F2FF  65 01
         sta  P0H                    ; F301  85 01
         rts                         ; F303  60
-L_F304:
-        dey                         ; F304  88
-        lda  (P1L),y                ; F305  B1 02
-        ora  S_0751,y               ; F307  19 F2 94
-        sta  S_0751,y               ; F30A  99 F2 94
-        lda  (P0L),y                ; F30D  B1 00
-        ora  S_0761,y               ; F30F  19 02 95
-        sta  S_0761,y               ; F312  99 02 95
-        cpy  #$00                   ; F315  C0 00
-        bne  L_F304                 ; F317  D0 EB
-        rts                         ; F319  60
+CLRTAIL:                                ; was L_F304, 22 bytes that nothing reaches (it merged glyph pieces into the dead buffer).
+        lda  ($FC),y                ; The end of CLRROW: the first byte keeps the bits of the cells before the column (CRM), the
+        and  CRM                    ; rest of the pixel row to the right edge is cleared.
+        sta  ($FC),y
+        iny
+        lda  #$00
+@f:     cpy  #$28
+        bcs  @e
+        sta  ($FC),y
+        iny
+        bne  @f
+@e:     rts
+        .res 22 - (* - CLRTAIL), $EA
 L_F31A:
         jmp  SWAP6                  ; F31A  4C D3 EC
         .byte $00,$00               ; F31D

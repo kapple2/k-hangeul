@@ -1,6 +1,6 @@
 # 한글 DOS 사용 설명서
 
-K-HANGEUL v1.2b
+K-HANGEUL v1.3
 
 K-HANGEUL을 올리면 DOS 3.3이 한글로 말하고, 한글 명령과 한글 파일 이름을 알아듣습니다. 이 문서는 그것을 쓰는 방법만 적었습니다. 만든 과정과 시험은 [DOS_KOREAN_REPORT.md](DOS_KOREAN_REPORT.md)에 있습니다. K-HANGEUL 전체 사용법은 [MANUAL.md](MANUAL.md)입니다.
 

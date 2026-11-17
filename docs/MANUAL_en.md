@@ -1,4 +1,4 @@
-# K-HANGEUL (캐플한글) v1.2b user manual
+# K-HANGEUL (캐플한글) v1.3 user manual
 
 > 한국어: [MANUAL.md](MANUAL.md)
 
@@ -48,7 +48,7 @@
 
 ## 4. Getting started
 
-Put the disk in drive 1 and switch on. The screen shows `캐플한글 v1.2b 2026년 (한글2 수정버전)`, the free memory and the `]` prompt.
+Put the disk in drive 1 and switch on. The screen shows `캐플한글 v1.3 2026년 (한글2 수정버전)`, the free memory and the `]` prompt.
 
 > Starting the driver clears the BASIC program in memory (like `NEW`). Load your program after booting.
 
@@ -105,7 +105,7 @@ Top: the key to press. Bottom: the jamo it types. The keys are laid out as on th
   - **On an Apple IIe, IIc or IIgs the Shift key cannot be read by software** (on the IIe and the Enhanced IIe the board pad that would connect it is open), so the driver detects these machines at start-up and uses the **Open-Apple key** instead: hold Open-Apple and press R E Q T W O P to get ㄲ ㄸ ㅃ ㅆ ㅉ ㅒ ㅖ. In AppleWin, Open-Apple is the Left Alt key (Solid-Apple is Right Alt). The Shift key itself is ignored for this on those machines, and the `-` `=` `*` `<` `>` `;` `+` keys work everywhere.
 - Compound vowels and final clusters are typed as the two letters in a row: ㅘ = H K, ㅝ = N J, ㅢ = M L, ㄳ = R T, ㄺ = F R.
 - Example: `한글` is **Ctrl-K** `G K S R M F` **Ctrl-A**; `까따빠` is **Ctrl-K** `- K = K * K` **Ctrl-A**.
-- The left arrow (backspace) deletes.
+- The left arrow (backspace) deletes: it moves the cursor back (a whole Hangul syllable at a time), and Return then reads the line only up to the cursor, as on a stock Apple II. The right arrow copies the character under the cursor again.
 - **The cursor shows the mode** (16K card): in English mode it is a solid block (the whole cell), in Hangul mode only the upper half of the cell. Its width follows the cell as before: 6 pixels over an English character or an empty cell, 12 over a Hangul syllable. (On a Saturn card the cursor is still the whole block in both modes.)
 
 **Editing keys** (the keys carried over from Hangeul2 that were checked on this driver)
@@ -129,7 +129,13 @@ Ctrl plus the key (the letter on top). The bottom label is what it does. Keys wi
 
 Labels: HOME home position · DEL delete one character · DEL> delete to end of line · INS insert mode on/off · INV/NRM inverse/normal · <- -> one column left/right · BOL/EOL start/end of line · CAN drop the typed line and go to the next · UP move the screen down one line · CLR clear the window · ENG/HAN English/Hangul mode
 
-Keys not yet checked on this driver: Ctrl-F, Ctrl-P, Ctrl-J, Ctrl-G, Ctrl-T, Ctrl-@, Ctrl-]. Ctrl-Z does nothing while you are editing. Ctrl-S does not stop typing (pausing works only in `TYPE` and `STYPE`).
+**Stock Apple II line keys.** These work as on a stock Apple II:
+- **Ctrl-X** drops the line you are typing: it prints `\`, goes to a new row and starts the line again (no prompt is printed).
+- **ESC** moves the cursor without changing the line: ESC `A` right, `B` left, `C` down, `D` up; ESC `I` up, `J` left, `K` right, `M` down (after ESC `I J K M` the cursor keeps moving with more `I J K M`; any other key ends it and is not typed). ESC `E` clears to the end of the line, ESC `F` to the end of the screen, ESC `@` clears the screen. A line cleared this way is gone from the screen, so Return reads what is left on the screen (stock keeps what you typed).
+- **Ctrl-S** pauses printing.
+- **Return** reads the line up to the end of the typed text, so a line cut short with the left arrow is shorter. If you move to an older row with ESC `D` or `I` and press Return, the driver reads that row (to re-enter a line, put the cursor at its start and press the right arrow along it).
+
+Keys not yet checked on this driver: Ctrl-F, Ctrl-P, Ctrl-J, Ctrl-G, Ctrl-T, Ctrl-@, Ctrl-]. Ctrl-Z does nothing while you are editing.
 
 
 ## 6. Hangul in BASIC programs
